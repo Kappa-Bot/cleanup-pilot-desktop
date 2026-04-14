@@ -1,0 +1,16 @@
+node_modules/
+dist/
+dist-electron/
+coverage/
+playwright-report/
+test-results/
+.tmp-tests/
+*.log
+ui-test-output.txt
+tmp_appshell_block.txt
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.DS_Store
+Thumbs.db

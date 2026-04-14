@@ -1,0 +1,9 @@
+{
+  "cpuModel": "AMD Ryzen 9 7950X",
+  "totalRamBytes": 68719476736,
+  "gpuModels": ["NVIDIA GeForce RTX 4080"],
+  "startupEntries": 18,
+  "services": 142,
+  "scheduledTasks": 219,
+  "primaryBottleneck": "disk_io"
+}

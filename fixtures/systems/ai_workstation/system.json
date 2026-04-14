@@ -1,0 +1,9 @@
+{
+  "cpuModel": "AMD Threadripper Pro 7975WX",
+  "totalRamBytes": 137438953472,
+  "gpuModels": ["NVIDIA RTX 6000 Ada", "NVIDIA RTX 6000 Ada"],
+  "startupEntries": 31,
+  "services": 204,
+  "scheduledTasks": 288,
+  "primaryBottleneck": "gpu"
+}

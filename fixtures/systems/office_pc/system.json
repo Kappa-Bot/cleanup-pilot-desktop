@@ -1,0 +1,9 @@
+{
+  "cpuModel": "Intel Core i5-12400",
+  "totalRamBytes": 17179869184,
+  "gpuModels": ["Intel UHD Graphics 730"],
+  "startupEntries": 12,
+  "services": 118,
+  "scheduledTasks": 181,
+  "primaryBottleneck": "ram"
+}

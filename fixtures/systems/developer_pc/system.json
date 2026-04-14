@@ -1,0 +1,9 @@
+{
+  "cpuModel": "Intel Core i9-14900K",
+  "totalRamBytes": 68719476736,
+  "gpuModels": ["NVIDIA GeForce RTX 4070 Ti"],
+  "startupEntries": 26,
+  "services": 167,
+  "scheduledTasks": 254,
+  "primaryBottleneck": "drivers"
+}

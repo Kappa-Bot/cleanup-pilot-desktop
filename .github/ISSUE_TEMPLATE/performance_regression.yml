@@ -1,0 +1,42 @@
+name: Performance regression
+description: Report slow scans, unstable progress bars, monitor issues, or slow cleanup execution.
+title: "[Performance]: "
+labels:
+  - performance
+body:
+  - type: dropdown
+    id: subsystem
+    attributes:
+      label: Subsystem
+      options:
+        - Scan
+        - Cleanup
+        - Storage Map
+        - Performance monitor
+        - Startup / services / tasks
+        - Drivers
+        - App shell / navigation
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: Problem summary
+    validations:
+      required: true
+  - type: textarea
+    id: machine
+    attributes:
+      label: Machine context
+      description: CPU, RAM, storage type, Windows version, and anything relevant.
+  - type: textarea
+    id: measurements
+    attributes:
+      label: Measurements or symptoms
+      description: Mention ETA instability, render jank, throughput, or time-to-result.
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+    validations:
+      required: true

@@ -155,9 +155,24 @@ Start with these files:
 
 - `CHATGPT_CONTEXT.md`
 - `README.md`
+- `docs/ARCHITECTURE.md`
+- `docs/PRODUCT_REDESIGN_BRIEF.md`
+- `docs/CHATGPT_ANALYSIS_GUIDE.md`
+- `docs/REPO_MAP.md`
 - `electron/types.ts`
 - `src/types.ts`
 - `electron/ipc.ts`
 - `src/features/app/AppShell.tsx`
 
 Do not treat `dist/` or `dist-electron/` as source of truth.
+
+## Collaboration files
+
+The repository now includes collaboration and review scaffolding intended to make ChatGPT-driven analysis and redesign easier:
+
+- `CONTRIBUTING.md`
+- `SECURITY.md`
+- `.github/workflows/ci.yml`
+- `.github/ISSUE_TEMPLATE/`
+- `.github/pull_request_template.md`
+- `.env.example`

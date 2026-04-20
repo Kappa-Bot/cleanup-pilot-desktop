@@ -1,0 +1,38 @@
+name: Product redesign
+description: Propose a substantial UX, IA, or product redesign.
+title: "[Redesign]: "
+labels:
+  - redesign
+  - product
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What product or UX problem are we trying to solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed redesign
+      description: Describe the new flow, IA, or interaction model.
+    validations:
+      required: true
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Why this is better
+      description: Explain the trust, clarity, or performance gain.
+    validations:
+      required: true
+  - type: textarea
+    id: affected
+    attributes:
+      label: Affected files or modules
+      description: If known, name product pages, engines, store slices, or IPC areas.
+  - type: textarea
+    id: chatgpt
+    attributes:
+      label: ChatGPT handoff notes
+      description: If you want ChatGPT to implement or critique this, explain what it should read first.

@@ -1,0 +1,31 @@
+name: Cleanup false positive
+description: Report a file, folder, or installed-app area that should not be classified as disposable.
+title: "[False Positive]: "
+labels:
+  - safety
+  - cleanup
+body:
+  - type: textarea
+    id: target
+    attributes:
+      label: Target path or application
+      description: Include the exact path or installed app name if possible.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it should be protected
+      description: Explain whether this is an install root, active data, config, or another protected asset.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Mention screenshots, app ownership, registry references, or observed breakage.
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact if cleaned
+      description: Describe the breakage risk.

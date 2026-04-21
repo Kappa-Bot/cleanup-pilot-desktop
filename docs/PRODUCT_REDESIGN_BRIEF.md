@@ -1,134 +1,108 @@
 # Product Redesign Brief
 
-This file is meant to help ChatGPT or human reviewers evaluate the product honestly and propose a stronger redesign.
+## Estado actual correcto
 
-## Current product thesis
+El producto visible ya funciona como un pipeline estricto:
 
-Cleanup Pilot Desktop should compete on:
+- `Home`
+- `Scan`
+- `Plan`
+- `Execute`
+- `History`
 
-- trust
-- reversibility
-- clarity of action
-- machine-level diagnostics depth
+`Settings` es secundaria.
 
-It should not try to win by showing more raw telemetry than everyone else.
+No es correcto evaluar la UX principal como `Home / Cleaner / Optimize / Vault`. Esa estructura ya no es la IA visible.
 
-## Status correction
+## Tesis de producto
 
-The current UX is still **transitional**.
+Cleanup Pilot debe competir por:
 
-That matters because the repo now has a calmer shell and stronger product language, but the interaction model still feels too close to the old tool-first architecture. A serious redesign should not treat the current UI as ‚Äúbasically done‚Äù.
+- claridad de decisiÛn
+- seguridad
+- reversibilidad
+- trust visible
+- loop corto y obvio
 
-Future redesign work should assume:
+No debe competir por enseÒar m·s cosas a la vez.
 
-- the current UX is a stepping stone
-- full flow redesign is allowed
-- page composition can be rebuilt from zero
-- preserving current chrome/layout is **not** a goal by itself
+## Fortalezas actuales
 
-## Current strengths
+- cleanup `quarantine-first`
+- optimizaciones reversibles
+- `Smart Check` ya integrado en el loop visible
+- historial por sesiÛn
+- trust y explainability en el plan
+- postura local-first
 
-- quarantine-first cleanup
-- reversible optimization actions
-- installed-app-aware protections
-- structured diagnostics and performance analysis
-- driver guidance and AI-assisted review
-- a strong local-first posture
+## Debilidades actuales
 
-## Current weaknesses
+- todavÌa existe residuo legacy en el repo y cerca del renderer activo
+- el sistema visual del pipeline ya es m·s serio, pero todavÌa puede ser m·s coherente y distintivo
+- `Plan`, `Execute` y `History` todavÌa tienen margen claro de industrializaciÛn
+- before/after y narrativa de sesiones a˙n pueden ser m·s fuertes
+- la cobertura funcional sigue siendo m·s profunda tÈcnicamente que empaquetada comercialmente
 
-- still not enough curated app coverage to beat mature cleaners on breadth
-- Smart Check is present and significantly stronger, but still not the only product loop a new user will discover
-- some parts of the UI still reflect older tool-first architecture underneath
-- before/after reporting can be stronger
-- trust messaging can still be sharper and more consistent
+## QuÈ debe optimizar el siguiente ciclo
 
-## What a strong redesign should optimize for
+1. mejorar composiciÛn y jerarquÌa del pipeline actual
+2. reducir m·s residuos legacy del camino activo
+3. hacer `Plan` m·s claro en impacto, riesgo y reversibilidad
+4. hacer `Execute` m·s calmado y m·s convincente en perceived speed
+5. hacer `History` m·s narrativo y m·s confiable
+6. cerrar mejor el sistema visual activo
 
-A strong redesign should:
+## QuÈ no debe hacer el siguiente ciclo
 
-1. reduce noise on first load
-2. surface one recommended action clearly
-3. make safety evidence easy to understand
-4. keep detail secondary
-5. avoid forcing users into large tables early
-6. keep advanced power accessible for review and debugging
+- reabrir `Cleaner`, `Optimize` o `Vault` como navegaciÛn visible
+- reintroducir tablas grandes al primer render
+- tratar AI como chat principal
+- usar la existencia de un engine interno como argumento para aÒadir otra pantalla
 
-## Product question to keep asking
+## Preguntas correctas para revisar el producto
 
-For any screen:
+- øQuÈ debe hacer el usuario ahora mismo?
+- øPor quÈ deberÌa confiar en esta acciÛn?
+- øQuÈ detalle puede permanecer oculto hasta intenciÛn explÌcita?
+- øQuÈ residuo legacy sigue filtr·ndose a la superficie visible?
 
-- What is the next safe action?
-- Why should the user trust it?
-- What data can be hidden until explicitly requested?
-
-## Areas that deserve aggressive improvement
+## Foco por superficie
 
 ### Home
-- keep `Smart Check` as the dominant hero
-- continue strengthening before/after summaries
-- continue improving ranking of cross-domain issues and health trend readability
+- recomendaciÛn principal m·s precisa
+- hero m·s limpio
+- score y trend m·s legibles
 
-### Cleaner
-- more category-first grouping
-- more container-level reasoning
-- better explanation of safe wins vs review items
-- stronger duplicate integration
+### Scan
+- sensaciÛn de velocidad y control
+- agrupaciÛn a˙n m·s clara
+- menos copy de transiciÛn
 
-### Optimize
-- stronger issue-first summary
-- clearer startup/service/task action ranking
-- charts only when they change a decision
+### Plan
+- mejor lectura de impacto y riesgo
+- mejores affordances de detalle secundario
+- relaciÛn m·s clara entre issues y acciones elegidas
 
-### Release / trust
-- keep a single Windows packaging path
-- preserve Electron hardening
-- keep AI contextual and structured instead of chat-first
+### Execute
+- progreso m·s tranquilo
+- menos sensaciÛn de proceso interno
+- m·s Ènfasis en quÈ est· ocurriendo y quÈ sigue siendo seguro
 
-### Vault
-- tighter narrative around reversibility and recovery
-- clearer purge safety and retention framing
+### History
+- mejor before/after
+- mejor framing de undo / restore / purge
+- sesiones m·s parecidas a historias de mantenimiento cerradas
 
-## Objective benchmark vs CCleaner
+## Direcciones v·lidas para el prÛximo rediseÒo
 
-The repo should be evaluated honestly.
+- industrializar el pipeline
+- limpiar legado visible o cercano
+- pulir microcopy y confirmaciones
+- fortalecer el sistema visual con menos ruido
 
-Today it is stronger in:
-- trust and reversibility
-- diagnostics depth
-- local-first behavior
+## Direcciones inv·lidas
 
-Today it is still weaker in:
-- breadth of curated support
-- polished maintenance automation
-- software updater breadth
-- fully productized mass-market simplicity
-
-## Good redesign outputs
-
-A strong redesign proposal usually includes:
-
-- new information architecture
-- what to hide from first view
-- what to elevate to first view
-- trust language and evidence strategy
-- performance implications of the new flows
-- migration steps from the current shell/tab layering
-
-## What a real redesign should be willing to delete
-
-- duplicated summaries that say the same thing twice
-- legacy deep links promoted too early
-- first-load tables
-- telemetry blocks that do not change a decision
-- routebar clutter
-- ‚Äúworkspace‚Äù concepts that exist only because of historical implementation
-- AI surfaces that behave like separate tools instead of guidance layers
-
-## What a real redesign should feel like
-
-- premium Windows desktop software
-- quiet, decisive, trustworthy
-- visually strong without becoming noisy
-- more intentional, more minimal, more industrial
-- clearly stronger than a cosmetic refresh
+- abrir m·s superficies
+- volver a diseÒo tipo dashboard
+- mezclar navegaciÛn visible con taxonomÌa interna del cÛdigo
+- aÒadir controles solo porque existan en settings o engines

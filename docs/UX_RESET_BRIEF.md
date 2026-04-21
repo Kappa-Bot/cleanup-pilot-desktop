@@ -1,133 +1,78 @@
-# UX Reset Brief
+# Brief de siguiente ciclo UX
 
-This document exists to remove ambiguity for future redesign work.
+## Punto de partida real
 
-## Non-negotiable message
+El reset estructural ya est· hecho.
 
-The current UX is **not** the final product UX.
+La app visible ya es:
 
-It is more product-shaped than before, but it still feels too close to a tool suite with calmer chrome layered on top. That is not enough.
+- `Home`
+- `Scan`
+- `Plan`
+- `Execute`
+- `History`
 
-If a future ChatGPT or contributor is asked to redesign the app, the correct interpretation is:
+`Settings` es secundaria.
 
-- redesign the UX from zero when needed
-- challenge the current shell and flows
-- do not preserve the current layout out of inertia
-- optimize for product quality, not just for continuity
+El siguiente ciclo no debe inventar otra IA. Debe industrializar la actual.
 
-## Design target
+## QuÈ significa industrializar ahora
 
-The app should feel like:
+- jerarquÌa visual m·s estricta
+- spacing m·s disciplinado
+- mejores estados de carga, error y Èxito
+- mejor narrativa de riesgo, impacto y reversibilidad
+- menos residuos del lenguaje y composiciÛn legacy
 
-- premium Windows desktop software
-- industrial and trustworthy
-- visually strong, elegant, and calm
-- decisive instead of chatty
-- minimal without becoming generic
-
-It should not feel like:
-
-- an internal tool
-- a developer dashboard
-- a pile of tabs
-- ‚Äúthe same app but prettier‚Äù
-
-## Product-level design principles
-
-- one dominant action per screen
-- low noise / high signal
-- progressive disclosure
-- trust and reversibility always visible
-- power secondary, not first-load
-- fewer controls, better grouped
-- visible cause/effect for every important action
-
-## What should be reconsidered from scratch
-
-### Shell
-- header weight
-- routebar structure
-- deep-link exposure
-- command palette positioning and scope
-- section summaries vs repeated chrome
+## Foco correcto
 
 ### Home
-- hero structure
-- Smart Check prominence
-- issue ranking presentation
-- score/trend visualization
-- before/after storytelling
+- una recomendaciÛn todavÌa m·s precisa
+- hero m·s sobrio y m·s caro
+- score/trend m·s legibles y compactos
 
-### Cleaner
-- how scan, review, AI, blocked items, and duplicates are sequenced
-- whether the current master-detail pattern is the right final pattern
-- how bulk actions, filters, and evidence are surfaced
+### Scan
+- sensaciÛn de rapidez
+- agrupaciÛn m·s limpia
+- menos copy intermedia
 
-### Optimize
-- whether live performance should be a first interaction or a secondary drill-down
-- how startup optimization should dominate the page
-- how services/tasks/drivers become contextual, not parallel noise
+### Plan
+- impacto, riesgo y confianza m·s obvios
+- mejor estructura de detalle secundario
+- confirmaciÛn todavÌa m·s seria y clara
 
-### Vault
-- how restore, purge, history, and settings are sequenced
-- whether settings belong as a page or a side utility
+### Execute
+- progreso m·s calmado
+- mejor perceived speed
+- menos sensaciÛn de proceso interno
 
-## What should be aggressively removed
+### History
+- sesiones m·s narrativas
+- before/after m·s sÛlido
+- undo / restore / purge a˙n m·s claros
 
-- duplicated summaries
-- telemetry blocks that do not change a decision
-- giant first-load tables
-- routebar clutter
-- badges that do not carry risk/action meaning
-- cards that repeat the same KPI in different wording
-- AI panels that behave like a separate app
+## QuÈ no debe pasar
 
-## What ‚Äúserious and industrial‚Äù means here
+- reabrir `Cleaner`, `Optimize` o `Vault`
+- volver al modelo tool-first
+- meter gr·ficos o tablas por defecto
+- sacar AI de su papel contextual
 
-- spacing is disciplined
-- hierarchy is obvious
-- copy is short and deliberate
-- confirmation flows feel safe and expensive in the right way
-- loading, error, empty, and success states feel designed, not incidental
-- the UI looks intentional on desktop, not web-app-like by accident
+## QuÈ limpiar con agresividad
 
-## What ‚Äúllamativo‚Äù should mean
+- copy que todavÌa huela a shell legacy
+- affordances duplicadas entre pipeline y legado
+- estilos activos que a˙n dependan de overrides acumulados
+- residuos del antiguo modelo de navegaciÛn en docs o cÛdigo cercano al path activo
 
-Not louder.
+## Resultado esperado
 
-It should mean:
+Cuando el siguiente ciclo estÈ bien hecho, la app debe sentirse:
 
-- stronger visual identity
-- clearer shape language
-- more confident composition
-- more premium motion and presentation
-- more memorable surfaces
+- m·s silenciosa
+- m·s precisa
+- m·s cara
+- m·s obvia
+- m·s segura
 
-It should **not** mean:
-
-- more badges
-- more gradients for their own sake
-- more charts
-- more widgets
-- more decorative noise
-
-## Required mindset for future redesign sessions
-
-Before implementing a major redesign, future sessions should answer:
-
-1. What should disappear completely?
-2. What should move behind explicit intent?
-3. What is the one action this page exists to drive?
-4. What evidence must remain visible for trust?
-5. What is still too ‚Äútool-first‚Äù?
-
-## Acceptance bar
-
-A successful redesign should make a reviewer say:
-
-- this feels like a real product, not a collection of tools
-- I know what to do next without scanning the whole page
-- I trust the app more because it explains less, but explains the right things
-- the app feels more expensive, more deliberate, and more modern
-
-If the result still feels like the current app with better styling, the redesign failed.
+Sin volver a ser una colecciÛn de herramientas.

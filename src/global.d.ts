@@ -3,12 +3,15 @@ import {
   AIAdvisorAnalysisRequest,
   AIAdvisorAnalysisResponse,
   AIModelsResponse,
+  DecisionExecutionProgressEvent,
   CleanupCategory,
   CleanupExecutionProgressEvent,
   CleanupPreset,
   CleanupPreviewResponse,
   CapabilityFlags,
   CoverageCatalogResponse,
+  DecisionExecuteResponse,
+  DecisionPlanResponse,
   DiskIoInsight,
   DuplicateGroup,
   DuplicatePreviewResponse,
@@ -17,6 +20,8 @@ import {
   DriverOfficialLookup,
   DriverScanResponse,
   HomeSummarySnapshot,
+  HistorySessionListResponse,
+  HistorySessionMutationResponse,
   LivePerformanceFrame,
   MemoryInsight,
   OptimizationActionSuggestion,
@@ -103,8 +108,22 @@ declare global {
       ) => Promise<SmartCheckPreviewResponse>;
       executeSmartCheck: (
         runId: string,
-        selectedIssueIds: string[]
+        selectedIssueIds: string[],
+        executionId?: string
       ) => Promise<SmartCheckExecuteResponse>;
+      buildDecisionPlan: (
+        runId: string,
+        selectedIssueIds: string[]
+      ) => Promise<DecisionPlanResponse>;
+      executeDecisionPlan: (
+        runId: string,
+        selectedIssueIds: string[],
+        executionId?: string
+      ) => Promise<DecisionExecuteResponse>;
+      onDecisionExecutionProgress: (handler: (payload: DecisionExecutionProgressEvent) => void) => () => void;
+      listHistorySessions: (limit?: number) => Promise<HistorySessionListResponse>;
+      restoreHistorySession: (sessionId: string) => Promise<HistorySessionMutationResponse>;
+      purgeHistorySession: (sessionId: string) => Promise<HistorySessionMutationResponse>;
       getCoverageCatalog: () => Promise<CoverageCatalogResponse>;
       explainFindingTrust: (findingId: string) => Promise<TrustExplanationResponse>;
       setScheduler: (

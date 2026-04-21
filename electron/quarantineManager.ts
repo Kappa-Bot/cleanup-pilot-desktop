@@ -430,6 +430,36 @@ export class QuarantineManager {
     return { restoredCount, failed };
   }
 
+  async purgeItems(itemIds: string[]): Promise<{ purgedCount: number; failed: string[] }> {
+    const purgedAt = Date.now();
+    let purgedCount = 0;
+    const failed: string[] = [];
+    const purgedIds: string[] = [];
+
+    for (const id of itemIds) {
+      const item = this.db.getQuarantineItem(id);
+      if (!item || item.purgedAt || item.restoredAt) {
+        failed.push(id);
+        continue;
+      }
+
+      try {
+        const targetPath = this.resolvePurgeTarget(item.quarantinePath);
+        await fs.rm(targetPath, { recursive: true, force: true, maxRetries: 4, retryDelay: 40 });
+        purgedIds.push(item.id);
+        purgedCount += 1;
+      } catch {
+        failed.push(id);
+      }
+    }
+
+    if (purgedIds.length) {
+      this.db.markQuarantinePurgedBatch(purgedIds, purgedAt);
+    }
+
+    return { purgedCount, failed };
+  }
+
   async purge(
     olderThanDays: number,
     options?: {

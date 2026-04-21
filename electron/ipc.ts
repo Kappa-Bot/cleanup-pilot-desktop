@@ -27,6 +27,7 @@ import { HomeSummaryService } from "./homeSummaryService";
 import { SmartCheckService } from "./smartCheckService";
 import { CoverageCatalogService } from "./coverageCatalogService";
 import { TrustExplainerService } from "./trustExplainerService";
+import { DecisionFlowService } from "./decisionFlowService";
 import {
   AIAdvisorAnalysisRequest,
   CoverageCatalogResponse,
@@ -107,6 +108,7 @@ interface Dependencies {
   smartCheckService: SmartCheckService;
   coverageCatalogService: CoverageCatalogService;
   trustExplainerService: TrustExplainerService;
+  decisionFlowService: DecisionFlowService;
 }
 
 interface ScanRunState {
@@ -158,7 +160,8 @@ export function registerIpcHandlers(deps: Dependencies): void {
     homeSummaryService,
     smartCheckService,
     coverageCatalogService,
-    trustExplainerService
+    trustExplainerService,
+    decisionFlowService
   } = deps;
 
   const scanRuns = new Map<string, ScanRunState>();
@@ -498,8 +501,38 @@ export function registerIpcHandlers(deps: Dependencies): void {
     return smartCheckService.preview(args.runId, Array.isArray(args.selectedIssueIds) ? args.selectedIssueIds : []);
   });
 
-  ipcMain.handle("smartcheck.execute", async (_event, args: { runId: string; selectedIssueIds: string[] }) => {
-    return smartCheckService.execute(args.runId, Array.isArray(args.selectedIssueIds) ? args.selectedIssueIds : []);
+  ipcMain.handle("smartcheck.execute", async (_event, args: { runId: string; selectedIssueIds: string[]; executionId?: string }) => {
+    return smartCheckService.execute(args.runId, Array.isArray(args.selectedIssueIds) ? args.selectedIssueIds : [], {
+      executionId: args.executionId
+    });
+  });
+
+  ipcMain.handle("decision.plan", async (_event, args: { runId: string; selectedIssueIds: string[] }) => {
+    return {
+      plan: await decisionFlowService.buildPlan(args.runId, Array.isArray(args.selectedIssueIds) ? args.selectedIssueIds : [])
+    };
+  });
+
+  ipcMain.handle("decision.execute", async (_event, args: { runId: string; selectedIssueIds: string[]; executionId?: string }) => {
+    const executionId = args.executionId ?? randomUUID();
+    return decisionFlowService.executePlan(args.runId, Array.isArray(args.selectedIssueIds) ? args.selectedIssueIds : [], {
+      executionId,
+      onProgress: (payload) => {
+        _event.sender.send("decision.execute.progress", payload);
+      }
+    });
+  });
+
+  ipcMain.handle("history.sessions.list", async (_event, args?: { limit?: number }) => {
+    return decisionFlowService.listHistorySessions(args?.limit);
+  });
+
+  ipcMain.handle("history.sessions.restore", async (_event, args: { sessionId: string }) => {
+    return decisionFlowService.restoreHistorySession(args.sessionId);
+  });
+
+  ipcMain.handle("history.sessions.purge", async (_event, args: { sessionId: string }) => {
+    return decisionFlowService.purgeHistorySession(args.sessionId);
   });
 
   ipcMain.handle("coverage.catalog", async () => {

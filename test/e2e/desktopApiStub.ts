@@ -1,65 +1,27 @@
 import type { Page } from "@playwright/test";
+import type {
+  ActionPlanSummary,
+  AppConfig,
+  DecisionExecuteResponse,
+  DecisionExecutionProgressEvent,
+  DecisionPlanResponse,
+  ExecutionSession,
+  HistorySessionListResponse,
+  HistorySessionMutationResponse,
+  HomeSummarySnapshot,
+  ProductIssueCard,
+  SettingsPayload,
+  SmartCheckRun
+} from "../../src/types";
 
-interface DesktopApiScenario {
-  settings: Record<string, unknown>;
-  scheduler: Record<string, unknown>;
-  scanResults: Record<string, unknown>;
-  cleanupPreview: Record<string, unknown>;
-  cleanupExecution: Record<string, unknown>;
-  performance: {
-    sessionId: string;
-    capabilities: Record<string, unknown>;
-    frames: Record<string, unknown>[];
-    summary: Record<string, unknown>;
-    snapshot: Record<string, unknown>;
-    driverSummary: Record<string, unknown>;
-  };
-  quarantineItems: Array<Record<string, unknown>>;
-}
+export async function installDesktopApiStub(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const now = Date.now();
 
-function buildDefaultScenario(): DesktopApiScenario {
-  const now = Date.now();
-  const findings = [
-    {
-      id: "temp-1",
-      path: "C:\\Users\\me\\AppData\\Local\\Temp\\leftover.tmp",
-      category: "temp",
-      sizeBytes: 2_048,
-      risk: "low",
-      reason: "Temporary file path",
-      sourceRuleId: "temp-path",
-      selectedByDefault: true,
-      modifiedAt: now - 60_000
-    },
-    {
-      id: "cache-1",
-      path: "C:\\Users\\me\\AppData\\Local\\Cache\\bundle.bin",
-      category: "cache",
-      sizeBytes: 8_192,
-      risk: "medium",
-      reason: "Cache residue",
-      sourceRuleId: "cache-path",
-      selectedByDefault: true,
-      modifiedAt: now - 120_000
-    },
-    {
-      id: "log-1",
-      path: "C:\\Users\\me\\AppData\\Local\\Logs\\app.log",
-      category: "logs",
-      sizeBytes: 4_096,
-      risk: "low",
-      reason: "Log residue",
-      sourceRuleId: "log-path",
-      selectedByDefault: false,
-      modifiedAt: now - 180_000
-    }
-  ];
-
-  return {
-    settings: {
+    const settings: AppConfig = {
       defaultPreset: "standard",
       defaultCategories: ["temp", "cache", "logs"],
-      customRoots: ["C:\\\\"],
+      customRoots: ["C:\\"],
       neverCleanupPaths: [],
       neverCleanupApps: [],
       driverIgnoredInfNames: [],
@@ -76,7 +38,7 @@ function buildDefaultScenario(): DesktopApiScenario {
       highContrast: false,
       compactUi: false,
       includeInstalledApps: true,
-      driverToolsEnabled: true,
+      driverToolsEnabled: false,
       updatesFeedUrl: "",
       performanceSnapshotRetentionDays: 30,
       performanceAutoSnapshotOnLaunch: true,
@@ -84,310 +46,325 @@ function buildDefaultScenario(): DesktopApiScenario {
       performanceAutoSnapshotOnOptimization: true,
       performanceLiveSampleIntervalMs: 2000,
       performancePinnedMonitoring: false
-    },
-    scheduler: {
-      enabled: false,
-      cadence: "weekly",
-      dayOfWeek: 6,
-      time: "10:00"
-    },
-    scanResults: {
-      status: "completed",
-      findings,
-      rejected: [],
-      summary: {
-        runId: "run-1",
-        status: "completed",
-        startedAt: now - 15_000,
-        finishedAt: now - 2_000,
-        processedItems: findings.length,
-        findingsCount: findings.length,
-        totalCandidateBytes: findings.reduce((sum, item) => sum + Number(item.sizeBytes ?? 0), 0),
-        protectedRejectedCount: 0,
-        categories: {
-          temp: { count: 1, bytes: 2048 },
-          cache: { count: 1, bytes: 8192 },
-          logs: { count: 1, bytes: 4096 }
-        }
-      }
-    },
-    cleanupPreview: {
-      totalBytes: 10_240,
-      actionCount: 2,
-      riskFlags: { highRiskCount: 0, mediumRiskCount: 1, blockedCount: 0 }
-    },
-    cleanupExecution: {
-      movedCount: 2,
-      failedCount: 0,
-      freedBytes: 10_240,
-      errors: [],
-      movedIds: ["temp-1", "cache-1"],
-      failedIds: []
-    },
-    performance: {
-      sessionId: "perf-session-1",
-      capabilities: {
-        gpuSupported: true,
-        diagnosticsEventLogSupported: true,
-        taskDelaySupported: true,
-        serviceDelayedAutoStartSupported: true,
-        perProcessNetworkSupported: true
+    };
+
+    const sharedIssues = {
+      cleanup: {
+        id: "cleanup:safe-cache",
+        domain: "cleanup",
+        title: "Clear disposable cache",
+        summary: "Safe cache cleanup is ready.",
+        severity: "safe_win",
+        confidence: 0.93,
+        reversible: true,
+        primaryActionLabel: "Include in plan",
+        evidence: ["4.2 GB cache"]
       },
-      frames: [
+      startup: {
+        id: "startup:trim",
+        domain: "startup",
+        title: "Trim startup drag",
+        summary: "3 startup items are ready for review.",
+        severity: "high_impact",
+        confidence: 0.89,
+        reversible: true,
+        primaryActionLabel: "Review startup plan",
+        evidence: ["3 startup items", "21s estimated boot drag"]
+      },
+      blocked: {
+        id: "safety:blocked-programfiles",
+        domain: "safety",
+        title: "Protected install path blocked",
+        summary: "1 path was held back for safety.",
+        severity: "blocked",
+        confidence: 1,
+        reversible: true,
+        primaryActionLabel: "Keep blocked",
+        evidence: ["Program Files match"]
+      },
+      background: {
+        id: "performance:background-load",
+        domain: "performance",
+        title: "Reduce background load",
+        summary: "A few background items can be trimmed safely.",
+        severity: "review",
+        confidence: 0.73,
+        reversible: true,
+        primaryActionLabel: "Review background load",
+        evidence: ["2 reversible actions"]
+      }
+    } satisfies Record<string, ProductIssueCard>;
+
+    const latestReport: NonNullable<HomeSummarySnapshot["latestReport"]> = {
+      kind: "smartcheck",
+      generatedAt: now - 3600_000,
+      freedBytes: 3 * 1024 ** 3,
+      cleanupMovedCount: 11,
+      startupChangeCount: 2,
+      optimizationChangeCount: 2,
+      backgroundReductionPct: 14,
+      trustSummary: "The previous session stayed reversible."
+    };
+
+    const homeSnapshot: HomeSummarySnapshot = {
+      generatedAt: now,
+      healthScore: 61,
+      reclaimableBytes: 8 * 1024 ** 3,
+      primaryBottleneck: "mixed",
+      safetyState: "review_needed",
+      trustSummary: "Everything stays preview-first, quarantine-first, and reversible.",
+      recommendedActionSummary: "3 issues need attention. Build a plan before changing anything.",
+      subscores: [
         {
-          sessionId: "perf-session-1",
-          capturedAt: now - 4_000,
-          cpuUsagePct: 42,
-          ramUsedPct: 56,
-          diskActivePct: 18,
-          gpuUsagePct: 9,
-          networkSendBytesPerSec: 256_000,
-          networkReceiveBytesPerSec: 128_000,
-          topProcesses: []
+          key: "storage",
+          label: "Storage",
+          score: 58,
+          status: "watch",
+          summary: "Disposable storage is available.",
+          evidence: ["8 GB reclaimable"]
         },
         {
-          sessionId: "perf-session-1",
-          capturedAt: now - 1_000,
-          cpuUsagePct: 58,
-          ramUsedPct: 62,
-          diskActivePct: 44,
-          gpuUsagePct: 15,
-          networkSendBytesPerSec: 768_000,
-          networkReceiveBytesPerSec: 256_000,
-          topProcesses: [
-            {
-              pid: 4242,
-              processName: "RendererHost.exe",
-              executablePath: "C:\\Program Files\\Cleanup Pilot\\RendererHost.exe",
-              cpuPct: 58,
-              workingSetBytes: 820 * 1024 * 1024,
-              diskWriteBytesPerSec: 18 * 1024 * 1024
-            }
-          ]
+          key: "startup",
+          label: "Startup",
+          score: 44,
+          status: "action",
+          summary: "Startup drag is the main slowdown.",
+          evidence: ["3 high-impact entries"]
+        },
+        {
+          key: "safety",
+          label: "Safety",
+          score: 90,
+          status: "healthy",
+          summary: "Protection is active.",
+          evidence: ["Installed apps protected"]
         }
       ],
-      summary: {
-        sessionId: "perf-session-1",
-        sampleIntervalMs: 2000,
-        startedAt: now - 5_000,
-        lastSampleAt: now - 1_000,
-        sampleCount: 2
+      trend: {
+        direction: "down",
+        delta: -4,
+        label: "Health slipped 4 points",
+        windowLabel: "vs last session"
       },
-      snapshot: {
-        id: "snapshot-1",
-        createdAt: now,
-        source: "manual",
-        bottleneck: { primary: "disk_io", confidence: 0.91 },
-        cpu: { avgUsagePct: 58 },
-        memory: { usedPct: 62 },
-        diskIo: { activeTimePct: 44 },
-        gpu: { totalUsagePct: 15 },
-        startup: { impactScore: 24 }
+      latestReport,
+      recommendedIssue: sharedIssues.startup,
+      topIssues: [sharedIssues.cleanup, sharedIssues.startup, sharedIssues.blocked]
+    };
+
+    const smartCheckRun: SmartCheckRun = {
+      id: "smart-1",
+      startedAt: now,
+      completedAt: now + 4000,
+      status: "completed",
+      mode: "fast",
+      summary: homeSnapshot,
+      cleaner: {
+        findingsCount: 18,
+        selectedCount: 12,
+        selectedBytes: 8 * 1024 ** 3,
+        groupedIssues: [sharedIssues.cleanup, sharedIssues.blocked]
       },
-      driverSummary: {
-        latencyRisk: "high",
-        suspectedDrivers: [{ name: "ndis.sys", reason: ["DPC spikes"], confidence: 0.8 }],
-        activeSignals: []
+      optimize: {
+        startupIssues: 3,
+        performanceIssues: 1,
+        driverIssues: 0,
+        groupedIssues: [sharedIssues.startup, sharedIssues.background]
       }
-    },
-    quarantineItems: [
-      {
-        id: "q-1",
-        category: "temp",
-        sizeBytes: 1024,
-        movedAt: now - 86_400_000,
-        originalPath: "C:\\temp\\one.tmp",
-        quarantinePath: "C:\\vault\\one.tmp",
-        source: "scan",
-        active: true
+    };
+
+    const plan: ActionPlanSummary = {
+      runId: "smart-1",
+      generatedAt: now + 5000,
+      selectedIssueIds: [sharedIssues.cleanup.id, sharedIssues.startup.id, sharedIssues.blocked.id],
+      selectedIssues: [sharedIssues.cleanup, sharedIssues.startup, sharedIssues.blocked],
+      issueBuckets: [
+        {
+          id: "safe_to_clean",
+          label: "Safe to clean",
+          summary: "1 grouped cleanup action can move to quarantine.",
+          count: 1,
+          issues: [sharedIssues.cleanup]
+        },
+        {
+          id: "startup_impact",
+          label: "Startup impact",
+          summary: "3 startup items are worth adjusting.",
+          count: 1,
+          issues: [sharedIssues.startup]
+        },
+        {
+          id: "background_load",
+          label: "Background load",
+          summary: "A few background items can be trimmed safely.",
+          count: 1,
+          issues: [sharedIssues.background]
+        },
+        {
+          id: "blocked_for_safety",
+          label: "Blocked for safety",
+          summary: "1 path remains blocked.",
+          count: 1,
+          issues: [sharedIssues.blocked]
+        }
+      ],
+      cleanupPreview: {
+        totalBytes: 8 * 1024 ** 3,
+        actionCount: 12,
+        riskFlags: { highRiskCount: 0, mediumRiskCount: 1, blockedCount: 1 }
       },
-      {
-        id: "q-2",
-        category: "cache",
-        sizeBytes: 2048,
-        movedAt: now - 172_800_000,
-        originalPath: "C:\\temp\\two.tmp",
-        quarantinePath: "C:\\vault\\two.tmp",
-        source: "scan",
-        active: true
+      optimizationPreview: {
+        actions: [
+          {
+            id: "startup:disable:discord",
+            targetKind: "startup_entry",
+            targetId: "registry_run|HKCU|Discord",
+            action: "disable",
+            title: "Disable Discord on startup",
+            summary: "Keep it available, but not at every boot.",
+            risk: "low",
+            reversible: true,
+            blocked: false,
+            estimatedBenefitScore: 8
+          }
+        ],
+        blockedCount: 0,
+        reversibleCount: 1,
+        estimatedStartupSavingsMs: 2100,
+        estimatedBackgroundCpuSavingsPct: 1.1,
+        estimatedBackgroundRamSavingsBytes: 134217728,
+        warnings: []
       },
-      {
-        id: "q-3",
-        category: "logs",
-        sizeBytes: 4096,
-        movedAt: now - 259_200_000,
-        originalPath: "C:\\temp\\three.tmp",
-        quarantinePath: "C:\\vault\\three.tmp",
-        source: "scan",
-        active: true
+      blockedIssueCount: 1,
+      warnings: [],
+      trust: {
+        summary: "The plan keeps blocked items out, previews every change, and sends cleanup to quarantine first.",
+        reasons: [
+          "Blocked items are excluded automatically.",
+          "Cleanup uses quarantine before delete.",
+          "Startup changes stay reversible."
+        ],
+        reversible: true
+      },
+      assistant: {
+        title: "Fix startup drag first",
+        summary: "The startup changes are the fastest win after safe cleanup.",
+        whyItMatters: "It reduces boot drag without touching protected paths.",
+        nextActionLabel: "Review and continue",
+        fallbackUsed: true
       }
-    ]
-  };
-}
+    };
 
-export async function installDesktopApiStub(page: Page, overrides: Partial<DesktopApiScenario> = {}): Promise<void> {
-  const baseScenario = buildDefaultScenario();
-  const scenario = {
-    ...baseScenario,
-    ...overrides,
-    performance: {
-      ...baseScenario.performance,
-      ...(overrides.performance ?? {})
-    }
-  } as DesktopApiScenario;
+    const buildHistorySession = (): ExecutionSession => ({
+      id: "session-1",
+      kind: "smartcheck",
+      status: "completed",
+      startedAt: now,
+      completedAt: now + 12_000,
+      title: "Smart Check session",
+      summary: "Cleanup and startup changes were applied safely.",
+      freedBytes: 8 * 1024 ** 3,
+      cleanupMovedCount: 12,
+      optimizationChangeCount: 1,
+      startupChangeCount: 1,
+      backgroundReductionPct: 14,
+      quarantineItemIds: ["q-1", "q-2"],
+      optimizationChangeIds: ["opt-1"],
+      selectedIssueIds: [sharedIssues.cleanup.id, sharedIssues.startup.id],
+      report: {
+        kind: "smartcheck",
+        generatedAt: now + 12_000,
+        freedBytes: 8 * 1024 ** 3,
+        cleanupMovedCount: 12,
+        startupChangeCount: 1,
+        optimizationChangeCount: 1,
+        backgroundReductionPct: 14,
+        trustSummary: "Everything stays reversible."
+      },
+      trustSummary: "Everything stays reversible.",
+      warnings: [],
+      selectedIssues: [sharedIssues.cleanup, sharedIssues.startup],
+      reversibleActions: [
+        "12 cleanup items can be restored from quarantine.",
+        "1 startup change can be rolled back."
+      ],
+      hasUndo: true,
+      hasPurge: true
+    });
 
-  await page.addInitScript(
-    ({ desktopApiScenario }) => {
-      const scenarioState = desktopApiScenario as DesktopApiScenario;
-      const scanResults = scenarioState.scanResults;
-      const performance = scenarioState.performance;
-      const quarantineItems = [...scenarioState.quarantineItems];
+    let historySessions: ExecutionSession[] = [buildHistorySession()];
+    const decisionExecutionListeners = new Set<(payload: DecisionExecutionProgressEvent) => void>();
 
-      const listQuarantine = async (_limit = 200, offset = 0) => {
-        const pageSize = Number(_limit) || 200;
-        const start = Number(offset) || 0;
-        const items = quarantineItems.slice(start, start + pageSize);
-        const nextOffset = start + items.length;
-        return {
-          items,
-          totalCount: quarantineItems.length,
-          activeCount: quarantineItems.length,
-          hasMore: nextOffset < quarantineItems.length,
-          nextOffset
+    const emitDecisionProgress = (payload: DecisionExecutionProgressEvent) => {
+      for (const listener of decisionExecutionListeners) {
+        listener(payload);
+      }
+    };
+
+    const getSession = (sessionId: string): ExecutionSession => {
+      const session = historySessions.find((item) => item.id === sessionId);
+      if (!session) {
+        throw new Error(`History session not found: ${sessionId}`);
+      }
+      return session;
+    };
+
+    (window as Window & { desktopApi: any }).desktopApi = {
+      getSettings: async (): Promise<AppConfig> => settings,
+      updateSettings: async (payload: SettingsPayload): Promise<AppConfig> => Object.assign(settings, payload),
+      getHomeSnapshot: async (): Promise<{ snapshot: HomeSummarySnapshot }> => ({ snapshot: homeSnapshot }),
+      runSmartCheck: async () => ({ runId: smartCheckRun.id }),
+      getSmartCheckCurrent: async (): Promise<{ run: SmartCheckRun }> => ({ run: smartCheckRun }),
+      previewSmartCheck: async () => ({ warnings: [] }),
+      executeSmartCheck: async () => ({ warnings: [] }),
+      buildDecisionPlan: async (): Promise<DecisionPlanResponse> => ({ plan }),
+      executeDecisionPlan: async (): Promise<DecisionExecuteResponse> => {
+        emitDecisionProgress({
+          executionId: "session-1",
+          stage: "cleanup",
+          percent: 35,
+          title: "Applying cleanup",
+          summary: "Moving safe cleanup targets to quarantine.",
+          timestamp: Date.now()
+        });
+        emitDecisionProgress({
+          executionId: "session-1",
+          stage: "optimization",
+          percent: 72,
+          title: "Applying optimization",
+          summary: "Applying reversible startup changes.",
+          timestamp: Date.now()
+        });
+        const session = buildHistorySession();
+        historySessions = [session];
+        emitDecisionProgress({
+          executionId: session.id,
+          stage: "completed",
+          percent: 100,
+          title: "Plan applied",
+          summary: session.summary,
+          timestamp: Date.now()
+        });
+        return { session };
+      },
+      onDecisionExecutionProgress: (handler: (payload: DecisionExecutionProgressEvent) => void) => {
+        decisionExecutionListeners.add(handler);
+        return () => {
+          decisionExecutionListeners.delete(handler);
         };
-      };
-
-      (window as Window & { desktopApi: any }).desktopApi = {
-        getSettings: async () => scenarioState.settings,
-        updateSettings: async (payload: Record<string, unknown>) => ({ ...scenarioState.settings, ...payload }),
-        startScan: async () => ({ runId: "run-1" }),
-        cancelScan: async () => ({ ok: true }),
-        getScanResults: async () => scanResults,
-        onScanProgress: () => () => undefined,
-        previewCleanup: async () => scenarioState.cleanupPreview,
-        executeCleanup: async () => scenarioState.cleanupExecution,
-        onCleanupProgress: () => () => undefined,
-        listQuarantine,
-        restoreQuarantine: async () => ({ restoredCount: 0, failed: [] }),
-        purgeQuarantine: async () => ({
-          purgedCount: 0,
-          freedBytes: 0,
-          purgedGroups: 0,
-          storageHint: "unknown",
-          concurrency: 0,
-          durationMs: 0,
-          canceled: false
-        }),
-        cancelQuarantinePurge: async () => ({ ok: true }),
-        onQuarantinePurgeProgress: () => () => undefined,
-        scanDuplicates: async () => ({ groups: [] }),
-        previewDuplicateResolution: async () => ({ toKeep: 0, toQuarantine: 0, bytesRecoverable: 0 }),
-        executeDuplicateResolution: async () => ({ movedCount: 0, failedCount: 0, freedBytes: 0, errors: [], movedIds: [], failedIds: [] }),
-        scanStorage: async () => ({ topFolders: [], largestFiles: [], apps: [] }),
-        scanDrivers: async () => ({
-          source: "windows_update+oem_hints",
-          devices: [],
-          updateCandidates: [],
-          meaningfulDeviceCount: 1,
-          ignoredDeviceCount: 0,
-          suppressedCount: 0,
-          stackSuppressedCount: 0,
-          suppressionSuggestions: []
-        }),
-        openDriverOfficial: async () => ({ opened: true }),
-        lookupDriverOfficialWithAi: async () => ({ lookup: { url: "", label: "" }, opened: false }),
-        openWindowsUpdate: async () => ({ opened: true }),
-        listAiModels: async () => ({
-          models: [],
-          decision: { recommendedModel: "", provider: "local", rationale: "", alternatives: [] },
-          providers: { localCount: 0, cerebrasCount: 0, cerebrasConfigured: false }
-        }),
-        analyzeWithAi: async () => ({
-          models: [],
-          decision: { recommendedModel: "", provider: "local", rationale: "", alternatives: [] },
-          providers: { localCount: 0, cerebrasCount: 0, cerebrasConfigured: false },
-          actionPlan: [],
-          summary: {
-            scannedRoots: [],
-            scannedFileCount: 0,
-            scannedBytes: 0,
-            topFolders: [],
-            topFiles: [],
-            topExtensions: [],
-            appDataCandidates: []
-          },
-          recommendationsMarkdown: ""
-        }),
-        getHomeSnapshot: async () => ({
-          snapshot: {
-            generatedAt: Date.now(),
-            healthScore: 84,
-            reclaimableBytes: 0,
-            primaryBottleneck: "unknown",
-            safetyState: "protected",
-            recommendedIssue: null,
-            topIssues: []
-          }
-        }),
-        runSmartCheck: async () => ({ runId: "smart-1" }),
-        getSmartCheckCurrent: async () => ({
-          run: {
-            id: "smart-1",
-            startedAt: Date.now(),
-            completedAt: Date.now(),
-            status: "completed",
-            summary: {
-              generatedAt: Date.now(),
-              healthScore: 82,
-              reclaimableBytes: 0,
-              primaryBottleneck: "unknown",
-              safetyState: "protected",
-              recommendedIssue: null,
-              topIssues: []
-            },
-            cleaner: { findingsCount: 0, selectedCount: 0, selectedBytes: 0, groupedIssues: [] },
-            optimize: { startupIssues: 0, performanceIssues: 0, driverIssues: 0, groupedIssues: [] }
-          }
-        }),
-        previewSmartCheck: async () => ({ warnings: [] }),
-        executeSmartCheck: async () => ({ warnings: [] }),
-        getCoverageCatalog: async () => ({
-          windowsAreas: [],
-          appFamilies: [],
-          totals: { windowsAreasCovered: 0, appFamiliesCovered: 0 }
-        }),
-        explainFindingTrust: async () => ({ summary: "", risk: "low", reasons: [] }),
-        setScheduler: async () => ({ ok: true, scheduler: scenarioState.scheduler }),
-        getScheduler: async () => scenarioState.scheduler,
-        checkUpdates: async () => ({ currentVersion: "0.1.0", latestVersion: "0.1.0", url: "", hasUpdate: false }),
-        startPerformanceMonitor: async () => ({
-          sessionId: performance.sessionId,
-          capabilities: performance.capabilities
-        }),
-        getCurrentPerformanceSession: async () => ({
-          frames: performance.frames,
-          summary: performance.summary
-        }),
-        stopPerformanceMonitor: async () => ({ ok: true, summary: performance.summary }),
-        onPerformanceFrame: () => () => undefined,
-        captureDiagnosticsSnapshot: async () => ({ snapshot: performance.snapshot }),
-        listDiagnosticsHistory: async () => ({ snapshots: [] }),
-        scanStartup: async () => ({ entries: [], summary: { totalEntries: 0 }, suggestedActions: [] }),
-        openStartupEntryLocation: async () => ({ opened: true, mode: "default" }),
-        scanServices: async () => ({ services: [], summary: { totalServices: 0 }, suggestedActions: [] }),
-        scanTasks: async () => ({ tasks: [], summary: { totalTasks: 0 }, suggestedActions: [] }),
-        getDiskIoSnapshot: async () => ({ summary: { activeTimePct: 44 }, insights: [] }),
-        getMemorySnapshot: async () => ({ summary: { usedPct: 62 }, insights: [] }),
-        previewOptimizations: async () => ({ actions: [], totalBytes: 0, riskFlags: { highRiskCount: 0, mediumRiskCount: 0, blockedCount: 0 } }),
-        executeOptimizations: async () => ({ movedCount: 0, failedCount: 0, freedBytes: 0, errors: [], movedIds: [], failedIds: [] }),
-        listOptimizationHistory: async () => ({ changes: [] }),
-        restoreOptimizations: async () => ({ restoredCount: 0, failed: [] }),
-        runSystemDoctor: async () => ({ report: { issues: [] }, snapshot: performance.snapshot }),
-        scanDriverPerformance: async () => ({ summary: performance.driverSummary })
-      };
-    },
-    {
-      desktopApiScenario: scenario
-    }
-  );
+      },
+      listHistorySessions: async (): Promise<HistorySessionListResponse> => ({ sessions: historySessions }),
+      restoreHistorySession: async (sessionId: string): Promise<HistorySessionMutationResponse> => {
+        historySessions = historySessions.map((session) =>
+          session.id === sessionId ? { ...session, status: "restored", hasUndo: false } : session
+        );
+        return { session: getSession(sessionId), restoredCount: 3, failed: [] };
+      },
+      purgeHistorySession: async (sessionId: string): Promise<HistorySessionMutationResponse> => {
+        historySessions = historySessions.map((session) =>
+          session.id === sessionId ? { ...session, status: "purged", hasPurge: false } : session
+        );
+        return { session: getSession(sessionId), purgedCount: 2, failed: [] };
+      }
+    } as const;
+  });
 }

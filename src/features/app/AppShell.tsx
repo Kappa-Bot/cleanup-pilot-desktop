@@ -1,3 +1,4 @@
+// Legacy shell kept for migration work. The active renderer entry is src/features/pipeline/ProductShell.tsx.
 import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import {

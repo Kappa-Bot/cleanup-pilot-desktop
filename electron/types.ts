@@ -810,10 +810,20 @@ export interface SystemDoctorReport {
 }
 
 export type TopLevelSection = "home" | "cleaner" | "optimize" | "vault";
+export type TopLevelSurface = "home" | "scan" | "plan" | "execute" | "history";
 
 export type IssueDomain = "cleanup" | "duplicates" | "performance" | "startup" | "drivers" | "safety";
 
 export type IssueSeverity = "safe_win" | "review" | "high_impact" | "blocked";
+export type DecisionIssueBucketId =
+  | "safe_to_clean"
+  | "needs_review"
+  | "startup_impact"
+  | "background_load"
+  | "blocked_for_safety";
+export type HistorySessionKind = "smartcheck" | "cleanup" | "optimization";
+export type HistorySessionStatus = "completed" | "restored" | "purged" | "partially_restored" | "failed";
+export type DecisionExecutionStage = "preparing" | "cleanup" | "optimization" | "reporting" | "completed" | "failed";
 
 export type HealthSubscoreKey = "storage" | "startup" | "background" | "safety";
 export type HealthSubscoreStatus = "healthy" | "watch" | "action";
@@ -916,6 +926,96 @@ export interface SmartCheckExecuteResponse {
   warnings: string[];
   selectedIssues?: ProductIssueCard[];
   report?: BeforeAfterSummary;
+}
+
+export interface AssistantRecommendation {
+  title: string;
+  summary: string;
+  whyItMatters: string;
+  nextActionLabel: string;
+  fallbackUsed: boolean;
+}
+
+export interface TrustExplanation {
+  summary: string;
+  reasons: string[];
+  reversible: boolean;
+}
+
+export interface DecisionIssueBucket {
+  id: DecisionIssueBucketId;
+  label: string;
+  summary: string;
+  count: number;
+  issues: ProductIssueCard[];
+}
+
+export interface ActionPlanSummary {
+  runId: string;
+  generatedAt: number;
+  selectedIssueIds: string[];
+  selectedIssues: ProductIssueCard[];
+  issueBuckets: DecisionIssueBucket[];
+  cleanupPreview?: CleanupPreviewResponse;
+  optimizationPreview?: OptimizationPreviewResponse;
+  blockedIssueCount: number;
+  warnings: string[];
+  trust: TrustExplanation;
+  assistant: AssistantRecommendation;
+}
+
+export interface ExecutionSession {
+  id: string;
+  kind: HistorySessionKind;
+  status: HistorySessionStatus;
+  startedAt: number;
+  completedAt?: number;
+  title: string;
+  summary: string;
+  freedBytes: number;
+  cleanupMovedCount: number;
+  optimizationChangeCount: number;
+  startupChangeCount: number;
+  backgroundReductionPct?: number;
+  quarantineItemIds: string[];
+  optimizationChangeIds: string[];
+  selectedIssueIds: string[];
+  report?: BeforeAfterSummary;
+  trustSummary: string;
+  warnings: string[];
+  selectedIssues: ProductIssueCard[];
+  reversibleActions: string[];
+  hasUndo: boolean;
+  hasPurge: boolean;
+}
+
+export interface HistorySessionListResponse {
+  sessions: ExecutionSession[];
+}
+
+export interface DecisionExecutionProgressEvent {
+  executionId: string;
+  stage: DecisionExecutionStage;
+  percent: number;
+  title: string;
+  summary: string;
+  detail?: string;
+  timestamp: number;
+}
+
+export interface DecisionPlanResponse {
+  plan: ActionPlanSummary;
+}
+
+export interface DecisionExecuteResponse {
+  session: ExecutionSession;
+}
+
+export interface HistorySessionMutationResponse {
+  session: ExecutionSession;
+  restoredCount?: number;
+  purgedCount?: number;
+  failed: string[];
 }
 
 export interface CoverageCatalogEntry {

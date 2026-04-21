@@ -29,6 +29,7 @@ import { SmartCheckService } from "./smartCheckService";
 import { HomeSummaryService } from "./homeSummaryService";
 import { CoverageCatalogService } from "./coverageCatalogService";
 import { TrustExplainerService } from "./trustExplainerService";
+import { DecisionFlowService } from "./decisionFlowService";
 
 const isDev = !app.isPackaged;
 const trustedDevOrigin = "http://localhost:5173";
@@ -172,6 +173,12 @@ async function bootstrap(): Promise<void> {
   const homeSummaryService = new HomeSummaryService(smartCheckService);
   const coverageCatalogService = new CoverageCatalogService();
   const trustExplainerService = new TrustExplainerService();
+  const decisionFlowService = new DecisionFlowService({
+    db,
+    smartCheckService,
+    quarantineManager,
+    optimizationManager
+  });
 
   registerIpcHandlers({
     db,
@@ -198,7 +205,8 @@ async function bootstrap(): Promise<void> {
     homeSummaryService,
     smartCheckService,
     coverageCatalogService,
-    trustExplainerService
+    trustExplainerService,
+    decisionFlowService
   });
 
   if (configStore.getAll().performanceAutoSnapshotOnLaunch) {

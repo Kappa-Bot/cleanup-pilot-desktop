@@ -1,6 +1,6 @@
 import React from "react";
-import { AppShell } from "./features/app/AppShell";
+import { ProductShell } from "./features/pipeline/ProductShell";
 
 export function App() {
-  return <AppShell />;
+  return <ProductShell />;
 }

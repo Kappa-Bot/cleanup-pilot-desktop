@@ -1,93 +1,80 @@
-# ChatGPT Analysis Guide
+# GuÌa de an·lisis para ChatGPT
 
-This repo is intentionally prepared for deep ChatGPT review. Use this guide if you want ChatGPT to critique, redesign, or implement changes with good context.
+## Contexto correcto
 
-## Recommended prompt shape
+La UX visible actual del producto es un pipeline de 5 superficies:
 
-A strong prompt usually includes:
+- `Home`
+- `Scan`
+- `Plan`
+- `Execute`
+- `History`
 
-- the product goal
-- the exact area to improve
-- the quality bar
-- the files or docs to read first
-- whether code changes are expected immediately
+`Settings` es secundaria.
 
-## Recommended files to read first
+No analices el repo como si la UX visible siguiera siendo `Home / Cleaner / Optimize / Vault`.
+
+## Archivos que debes leer primero
 
 1. `README.md`
 2. `CHATGPT_CONTEXT.md`
 3. `docs/ARCHITECTURE.md`
 4. `docs/PRODUCT_REDESIGN_BRIEF.md`
 5. `docs/UX_RESET_BRIEF.md`
-6. `electron/types.ts`
-7. `src/types.ts`
-8. `electron/ipc.ts`
-9. the specific feature or engine files involved
+6. `docs/REPO_MAP.md`
+7. `src/features/pipeline/ProductShell.tsx`
+8. `electron/decisionFlowService.ts`
+9. `electron/ipc.ts`
+10. `src/types.ts`
+11. `electron/types.ts`
 
-## Good requests for ChatGPT
+## QuÈ preguntas son ˙tiles
 
-### Product redesign
-Ask for:
-- information architecture critique
-- what should and should not be first-load UI
-- how to make the app objectively stronger than CCleaner in trust and clarity
-- whether the current UX should be partially preserved or rebuilt from zero
-- what should be deleted, not just improved
+- quÈ parte del pipeline sigue teniendo ruido
+- quÈ superficie todavÌa se siente transicional
+- dÛnde falta claridad de impacto o riesgo
+- quÈ residuo legacy sigue filtr·ndose al producto visible
+- cÛmo mejorar trust y before/after sin aÒadir paneles
 
-### Cleanup safety
-Ask for:
-- false positive review
-- protection rule hardening
-- install-root and app-awareness improvements
-- preview and quarantine UX review
+## QuÈ cambios suelen tener mejor ROI
 
-### Performance and diagnostics
-Ask for:
-- profiler overhead analysis
-- chart rendering review
-- monitor architecture review
-- startup/service/task prioritization logic
+- refinar `Home`
+- hacer `Plan` m·s obvio y m·s seguro
+- mejorar `Execute` y la sensaciÛn de progreso
+- fortalecer `History` como centro de confianza
+- retirar o encapsular mejor el legado todavÌa cercano al renderer activo
 
-### AI
-Ask for:
-- structured output improvements
-- trust explanation improvements
-- token reduction strategies
-- fallback heuristics review
+## QuÈ no hacer por defecto
 
-## What ChatGPT should not do carelessly
+- reabrir `Cleaner`, `Optimize` o `Vault` como navegaciÛn visible
+- convertir AI en un chat principal
+- aÒadir dashboards o tablas al primer render
+- usar la taxonomÌa del repo como taxonomÌa del producto
 
-- weaken quarantine-first cleanup
-- bypass preview requirements
-- relax protected root or binary protections without explicit justification
-- send raw logs to AI providers
-- assume old many-tab IA is the desired future direction
+## CÛmo pedir un buen siguiente ciclo
 
-## Best implementation behavior
+Incluye explÌcitamente:
 
-The strongest ChatGPT sessions usually:
+- que la IA visible actual es el pipeline de 5 superficies
+- que `Settings` debe seguir siendo secundaria
+- que el objetivo es refinamiento industrial serio, no reabrir tabs
+- que la app debe parecer una utility profesional, no un dashboard
+- que el trabajo debe respetar `quarantine-first` y `preview-first`
 
-- propose product-level rationale first
-- map changes to concrete files
-- keep contracts aligned across renderer and electron
-- run `typecheck`, `test`, and `build`
-- update docs when architecture changes
+## QuÈ validar siempre
 
-## Important warning for future redesign sessions
+```bash
+npm run typecheck
+npm run test -- --runInBand
+npm run build
+npm run benchmark
+npm run test:e2e
+```
 
-Do not treat the current UX as a finished redesign baseline.
+## SeÒales de que una propuesta va mal
 
-If asked for a ‚Äúreal‚Äù redesign, the correct default is:
-
-- challenge the current layout aggressively
-- remove noise instead of relocating it
-- prefer new flows over preserving historical tab structure
-- optimize for product feel, not just functional completeness
-
-## If asking ChatGPT to redesign brutally
-
-Say explicitly:
-- that it may challenge the current UI and IA
-- that it should remove noise, not preserve it by default
-- that it should optimize for trust, speed, and product clarity
-- that it should be objective about where the app still trails CCleaner
+- vuelve a introducir demasiadas superficies visibles
+- aÒade paneles porque ìhay datos interesantesî
+- confunde capacidades internas con UX principal
+- debilita trust o reversibilidad
+- incrementa la complejidad visual en lugar de bajar el ruido

@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import {
   AIAdvisorAnalysisRequest,
+  DecisionExecutionProgressEvent,
   CapabilityFlags,
   CleanupCategory,
   CleanupExecutionProgressEvent,
@@ -8,8 +9,12 @@ import {
   CoverageCatalogResponse,
   DuplicateSelection,
   HomeSummarySnapshot,
+  HistorySessionListResponse,
   LivePerformanceFrame,
   OptimizationActionSuggestion,
+  DecisionExecuteResponse,
+  DecisionPlanResponse,
+  HistorySessionMutationResponse,
   SmartCheckExecuteResponse,
   SmartCheckPreviewResponse,
   SmartCheckRun,
@@ -86,8 +91,20 @@ const api = {
     invoke<{ run: SmartCheckRun }>("smartcheck.current", { runId }),
   previewSmartCheck: (runId: string, selectedIssueIds: string[]) =>
     invoke<SmartCheckPreviewResponse>("smartcheck.preview", { runId, selectedIssueIds }),
-  executeSmartCheck: (runId: string, selectedIssueIds: string[]) =>
-    invoke<SmartCheckExecuteResponse>("smartcheck.execute", { runId, selectedIssueIds }),
+  executeSmartCheck: (runId: string, selectedIssueIds: string[], executionId?: string) =>
+    invoke<SmartCheckExecuteResponse>("smartcheck.execute", { runId, selectedIssueIds, executionId }),
+  buildDecisionPlan: (runId: string, selectedIssueIds: string[]) =>
+    invoke<DecisionPlanResponse>("decision.plan", { runId, selectedIssueIds }),
+  executeDecisionPlan: (runId: string, selectedIssueIds: string[], executionId?: string) =>
+    invoke<DecisionExecuteResponse>("decision.execute", { runId, selectedIssueIds, executionId }),
+  onDecisionExecutionProgress: (handler: (payload: DecisionExecutionProgressEvent) => void) =>
+    on("decision.execute.progress", handler),
+  listHistorySessions: (limit?: number) =>
+    invoke<HistorySessionListResponse>("history.sessions.list", { limit }),
+  restoreHistorySession: (sessionId: string) =>
+    invoke<HistorySessionMutationResponse>("history.sessions.restore", { sessionId }),
+  purgeHistorySession: (sessionId: string) =>
+    invoke<HistorySessionMutationResponse>("history.sessions.purge", { sessionId }),
   getCoverageCatalog: () => invoke<CoverageCatalogResponse>("coverage.catalog"),
   explainFindingTrust: (findingId: string) =>
     invoke<TrustExplanationResponse>("trust.explainFinding", { findingId }),

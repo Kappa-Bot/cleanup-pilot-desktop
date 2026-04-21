@@ -18,6 +18,7 @@ import {
   CleanupCategory,
   CleanupExecuteResponse,
   CleanupPreviewResponse,
+  DecisionExecutionProgressEvent,
   HomeSummarySnapshot,
   OptimizationActionSuggestion,
   OptimizationExecutionResult,
@@ -64,6 +65,11 @@ interface SmartCheckServiceDependencies {
 }
 
 type SmartCheckMode = "fast" | "balanced";
+
+interface SmartCheckExecutionOptions {
+  executionId?: string;
+  onProgress?: (event: DecisionExecutionProgressEvent) => void;
+}
 
 interface SmartCheckInternalRun {
   publicRun: SmartCheckRun;
@@ -240,7 +246,11 @@ export class SmartCheckService {
     };
   }
 
-  async execute(runId: string, selectedIssueIds: string[]): Promise<SmartCheckExecuteResponse> {
+  async execute(
+    runId: string,
+    selectedIssueIds: string[],
+    options?: SmartCheckExecutionOptions
+  ): Promise<SmartCheckExecuteResponse> {
     const run = this.getRun(runId);
     const { cleanupSelection, optimizationActions } = this.resolveSelection(run, selectedIssueIds);
     const selectedIssues = selectIssueCards(run, selectedIssueIds);
@@ -251,14 +261,28 @@ export class SmartCheckService {
     let postCleanupSnapshot: SystemSnapshot | undefined;
     let preOptimizationSnapshot: SystemSnapshot | undefined;
     let postOptimizationSnapshot: SystemSnapshot | undefined;
+    const executionId = options?.executionId ?? randomUUID();
+    const emit = (stage: DecisionExecutionProgressEvent["stage"], percent: number, title: string, summary: string, detail?: string) => {
+      options?.onProgress?.({
+        executionId,
+        stage,
+        percent,
+        title,
+        summary,
+        detail,
+        timestamp: Date.now()
+      });
+    };
 
     if (!cleanupSelection.length && !optimizationActions.length) {
+      emit("failed", 100, "Nothing to execute", "The current Smart Check selection has no executable actions.");
       return {
         selectedIssues,
         warnings: ["The selected Smart Check issues do not map to an executable cleanup or optimization action yet."]
       };
     }
 
+    emit("preparing", 5, "Preparing plan", "Locking the current selection and checking safety guards.");
     const settings = this.deps.configStore.getAll();
     if (cleanupSelection.length && settings.performanceAutoSnapshotOnCleanup) {
       preCleanupSnapshot = await this.captureAndStoreSnapshot("pre_cleanup");
@@ -268,13 +292,27 @@ export class SmartCheckService {
     }
 
     if (cleanupSelection.length) {
-      cleanup = await this.deps.cleanupEngine.execute(run.findings, cleanupSelection, this.deps.quarantineManager);
+      emit("cleanup", 20, "Applying cleanup", "Moving selected cleanup targets into quarantine.");
+      cleanup = await this.deps.cleanupEngine.execute(run.findings, cleanupSelection, this.deps.quarantineManager, {
+        runId,
+        executionId,
+        onProgress: (progress) => {
+          emit(
+            "cleanup",
+            Math.max(20, Math.min(70, 20 + Math.round(progress.percent * 0.5))),
+            "Applying cleanup",
+            progress.message,
+            progress.runningPath
+          );
+        }
+      });
       if (cleanup.movedIds.length) {
         const movedSet = new Set(cleanup.movedIds);
         run.findings = run.findings.filter((item) => !movedSet.has(item.id));
       }
     }
     if (optimizationActions.length) {
+      emit("optimization", cleanupSelection.length ? 74 : 35, "Applying optimizations", "Applying reversible startup and background changes.");
       optimizations = await this.deps.optimizationManager.execute(optimizationActions);
     }
 
@@ -292,6 +330,7 @@ export class SmartCheckService {
       warnings.push(`${optimizations.failedCount} optimization change${optimizations.failedCount === 1 ? "" : "s"} failed during Smart Check execution.`);
     }
 
+    emit("reporting", 92, "Writing session report", "Capturing the final before/after summary.");
     const report = buildBeforeAfterSummary({
       kind: cleanup && optimizations ? "smartcheck" : cleanup ? "cleanup" : "optimization",
       cleanup,
@@ -307,6 +346,7 @@ export class SmartCheckService {
       latestReport: report
     };
     this.summaryCache = null;
+    emit("completed", 100, "Plan applied", "The session report is ready.");
 
     return { cleanup, optimizations, warnings, selectedIssues, report };
   }

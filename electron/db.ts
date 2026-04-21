@@ -6,6 +6,7 @@ import { parseJsonPayload } from "./jsonPayload";
 import {
   BottleneckType,
   CleanupCategory,
+  ExecutionSession,
   OptimizationChangeRecord,
   PerformanceSessionSummary,
   QuarantineItem,
@@ -109,6 +110,15 @@ export class AppDatabase {
         started_at INTEGER NOT NULL,
         ended_at INTEGER NOT NULL,
         sample_interval_ms INTEGER NOT NULL,
+        summary_json TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS history_sessions (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        status TEXT NOT NULL,
+        started_at INTEGER NOT NULL,
+        completed_at INTEGER,
         summary_json TEXT NOT NULL
       );
 
@@ -597,6 +607,61 @@ export class AppDatabase {
       [summary.id, summary.startedAt, summary.endedAt, summary.sampleIntervalMs, JSON.stringify(summary)]
     );
     this.save();
+  }
+
+  addHistorySession(session: ExecutionSession): void {
+    this.db.run(
+      `
+      INSERT OR REPLACE INTO history_sessions (
+        id, kind, status, started_at, completed_at, summary_json
+      ) VALUES (?, ?, ?, ?, ?, ?)
+    `,
+      [session.id, session.kind, session.status, session.startedAt, session.completedAt ?? null, JSON.stringify(session)]
+    );
+    this.save();
+  }
+
+  getHistorySession(id: string): ExecutionSession | null {
+    const result = this.db.exec(
+      `
+      SELECT summary_json
+      FROM history_sessions
+      WHERE id = ?
+      LIMIT 1
+    `,
+      [id]
+    );
+    const raw = result[0]?.values?.[0]?.[0];
+    if (!raw) {
+      return null;
+    }
+    try {
+      return parseJsonPayload<ExecutionSession>(String(raw), "Stored history session");
+    } catch {
+      return null;
+    }
+  }
+
+  listHistorySessions(limit = 50): ExecutionSession[] {
+    const result = this.db.exec(
+      `
+      SELECT summary_json
+      FROM history_sessions
+      ORDER BY started_at DESC
+      LIMIT ?
+    `,
+      [Math.max(1, Math.floor(limit))]
+    );
+    const rows = (result[0]?.values ?? []) as unknown[][];
+    return rows
+      .map((row) => {
+        try {
+          return parseJsonPayload<ExecutionSession>(String(row[0]), "Stored history session");
+        } catch {
+          return null;
+        }
+      })
+      .filter((item): item is ExecutionSession => Boolean(item));
   }
 
   purgePerformanceSessionsOlderThan(thresholdMs: number): number {

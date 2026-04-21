@@ -1,0 +1,335 @@
+:root {
+  --pipeline-bg: #edf1f4;
+  --pipeline-surface: rgba(255, 255, 255, 0.94);
+  --pipeline-surface-strong: #ffffff;
+  --pipeline-border: rgba(15, 23, 42, 0.08);
+  --pipeline-border-strong: rgba(15, 118, 110, 0.28);
+  --pipeline-ink: #1f2a33;
+  --pipeline-muted: #667788;
+  --pipeline-accent: #1f6b60;
+  --pipeline-accent-soft: #eef7f5;
+  --pipeline-warning: #fff7eb;
+  --pipeline-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+}
+
+body {
+  font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--pipeline-bg);
+  color: var(--pipeline-ink);
+}
+
+h1,
+h2,
+h3 {
+  font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.pipeline-app-shell {
+  min-height: 100vh;
+  display: grid;
+  gap: 18px;
+  padding: 18px;
+  color: var(--pipeline-ink);
+}
+
+.pipeline-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.pipeline-branding {
+  display: grid;
+  gap: 4px;
+}
+
+.pipeline-branding strong {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.pipeline-layout {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.pipeline-rail,
+.settings-drawer,
+.pipeline-card,
+.side-inspector,
+.decision-panel,
+.empty-state-card {
+  border: 1px solid var(--pipeline-border);
+  background: var(--pipeline-surface);
+  box-shadow: var(--pipeline-shadow);
+}
+
+.pipeline-rail {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+  border-radius: 20px;
+  position: sticky;
+  top: 18px;
+}
+
+.pipeline-nav {
+  display: grid;
+  gap: 10px;
+}
+
+.pipeline-nav-button {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--pipeline-border);
+  background: var(--pipeline-surface-strong);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pipeline-nav-button strong {
+  font-size: 0.95rem;
+}
+
+.pipeline-nav-button small {
+  color: var(--pipeline-muted);
+}
+
+.pipeline-nav-button.is-active {
+  border-color: var(--pipeline-border-strong);
+  background: var(--pipeline-accent-soft);
+}
+
+.pipeline-rail-note {
+  display: grid;
+  gap: 8px;
+}
+
+.pipeline-content,
+.pipeline-surface-stack,
+.pipeline-card-list,
+.pipeline-detail-list,
+.settings-section {
+  display: grid;
+  gap: 16px;
+}
+
+.pipeline-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.92fr);
+  gap: 18px;
+}
+
+.pipeline-grid--home {
+  align-items: start;
+}
+
+.pipeline-card {
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+  border-radius: 20px;
+}
+
+.pipeline-card--button {
+  width: 100%;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+
+.pipeline-card--button.is-active {
+  border-color: rgba(15, 118, 110, 0.24);
+  background: #f5faf8;
+}
+
+.pipeline-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 12px;
+}
+
+.pipeline-score-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.pipeline-score-card {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  background: #f8fafb;
+}
+
+.pipeline-score-card.tone-action {
+  background: var(--pipeline-warning);
+}
+
+.pipeline-score-card.tone-watch {
+  background: #f8fafb;
+}
+
+.pipeline-score-card.tone-healthy {
+  background: var(--pipeline-accent-soft);
+}
+
+.pipeline-score-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.pipeline-score-head strong {
+  font-size: 1.4rem;
+}
+
+.pipeline-action-row,
+.pipeline-button-row,
+.pipeline-report-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.pipeline-action-row {
+  justify-content: space-between;
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
+  padding-top: 10px;
+}
+
+.pipeline-report-line {
+  font-size: 0.9rem;
+}
+
+.execution-phase-list {
+  display: grid;
+  gap: 10px;
+}
+
+.execution-phase {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  background: #f8fafb;
+}
+
+.execution-phase.is-active {
+  border-color: rgba(15, 118, 110, 0.24);
+  background: var(--pipeline-accent-soft);
+}
+
+.execution-phase.is-complete {
+  border-color: rgba(31, 41, 55, 0.08);
+  background: var(--pipeline-surface-strong);
+}
+
+.settings-drawer {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  width: min(380px, calc(100vw - 36px));
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+  padding: 18px;
+  border-radius: 20px;
+  z-index: 40;
+  display: grid;
+  gap: 18px;
+}
+
+.settings-drawer-header,
+.settings-field {
+  display: grid;
+  gap: 8px;
+}
+
+.checkbox-field {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-field input,
+.settings-field select,
+.settings-field textarea {
+  width: 100%;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: var(--pipeline-surface-strong);
+  color: inherit;
+}
+
+.pipeline-app-shell .btn {
+  background: var(--pipeline-accent);
+  box-shadow: none;
+}
+
+.pipeline-app-shell .btn.secondary {
+  background: var(--pipeline-surface-strong);
+  color: var(--pipeline-ink);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+}
+
+.pipeline-app-shell .smart-action-bar {
+  background: transparent;
+}
+
+.pipeline-app-shell .smart-action-pill {
+  background: var(--pipeline-surface-strong);
+  border: 1px solid var(--pipeline-border);
+}
+
+.pipeline-app-shell .smart-action-pill.is-active {
+  background: var(--pipeline-accent-soft);
+  border-color: var(--pipeline-border-strong);
+}
+
+.pipeline-app-shell .issue-card {
+  border: 1px solid var(--pipeline-border);
+  background: var(--pipeline-surface-strong);
+  color: inherit;
+}
+
+.pipeline-app-shell .issue-card-header small {
+  color: var(--pipeline-muted);
+}
+
+.pipeline-app-shell .side-inspector,
+.pipeline-app-shell .decision-panel,
+.pipeline-app-shell .empty-state-card {
+  color: inherit;
+}
+
+@media (max-width: 980px) {
+  .pipeline-layout,
+  .pipeline-grid,
+  .pipeline-score-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pipeline-rail {
+    position: static;
+  }
+
+  .settings-drawer {
+    width: calc(100vw - 24px);
+    top: 12px;
+    right: 12px;
+    max-height: calc(100vh - 24px);
+  }
+}

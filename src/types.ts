@@ -815,6 +815,10 @@ export type IssueDomain = "cleanup" | "duplicates" | "performance" | "startup" |
 
 export type IssueSeverity = "safe_win" | "review" | "high_impact" | "blocked";
 
+export type HealthSubscoreKey = "storage" | "startup" | "background" | "safety";
+export type HealthSubscoreStatus = "healthy" | "watch" | "action";
+export type HealthTrendDirection = "up" | "down" | "flat" | "unknown";
+
 export interface ProductIssueCard {
   id: string;
   domain: IssueDomain;
@@ -828,6 +832,37 @@ export interface ProductIssueCard {
   primaryActionLabel: string;
   secondaryActionLabel?: string;
   evidence: string[];
+  trustSummary?: string;
+  blockedReasons?: string[];
+  changeSummary?: string[];
+  heuristicFallbackUsed?: boolean;
+}
+
+export interface HealthSubscore {
+  key: HealthSubscoreKey;
+  label: string;
+  score: number;
+  status: HealthSubscoreStatus;
+  summary: string;
+  evidence: string[];
+}
+
+export interface HealthTrendState {
+  direction: HealthTrendDirection;
+  delta: number;
+  label: string;
+  windowLabel: string;
+}
+
+export interface BeforeAfterSummary {
+  kind: "smartcheck" | "cleanup" | "optimization";
+  generatedAt: number;
+  freedBytes: number;
+  cleanupMovedCount: number;
+  startupChangeCount: number;
+  optimizationChangeCount: number;
+  backgroundReductionPct?: number;
+  trustSummary: string;
 }
 
 export interface HomeSummarySnapshot {
@@ -836,6 +871,11 @@ export interface HomeSummarySnapshot {
   reclaimableBytes: number;
   primaryBottleneck: BottleneckType;
   safetyState: "protected" | "review_needed" | "attention_needed";
+  trustSummary?: string;
+  recommendedActionSummary?: string;
+  subscores?: HealthSubscore[];
+  trend?: HealthTrendState;
+  latestReport?: BeforeAfterSummary;
   recommendedIssue: ProductIssueCard | null;
   topIssues: ProductIssueCard[];
 }
@@ -845,7 +885,9 @@ export interface SmartCheckRun {
   startedAt: number;
   completedAt?: number;
   status: "running" | "completed" | "failed" | "canceled";
+  mode?: "fast" | "balanced";
   summary: HomeSummarySnapshot;
+  report?: BeforeAfterSummary;
   cleaner: {
     findingsCount: number;
     selectedCount: number;
@@ -858,6 +900,22 @@ export interface SmartCheckRun {
     driverIssues: number;
     groupedIssues: ProductIssueCard[];
   };
+}
+
+export interface SmartCheckPreviewResponse {
+  cleanupPreview?: CleanupPreviewResponse;
+  optimizationPreview?: OptimizationPreviewResponse;
+  warnings: string[];
+  selectedIssues?: ProductIssueCard[];
+  trustSummary?: string;
+}
+
+export interface SmartCheckExecuteResponse {
+  cleanup?: CleanupExecuteResponse;
+  optimizations?: OptimizationExecutionResult;
+  warnings: string[];
+  selectedIssues?: ProductIssueCard[];
+  report?: BeforeAfterSummary;
 }
 
 export interface CoverageCatalogEntry {
@@ -880,4 +938,6 @@ export interface TrustExplanationResponse {
   risk: RiskLevel;
   reasons: string[];
   blockedBy?: string[];
+  changeSummary?: string[];
+  heuristicFallbackUsed?: boolean;
 }

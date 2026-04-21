@@ -34,3 +34,24 @@ Security regressions are treated seriously. Changes must preserve:
 - installed-app-aware protections
 - reversible optimization changes
 - no hardcoded secrets in the repository
+
+## Electron hardening
+
+The desktop shell is expected to keep the renderer constrained:
+
+- `contextIsolation` stays enabled.
+- `nodeIntegration` stays disabled.
+- `sandbox` stays enabled.
+- `BrowserWindow` navigation and new-window creation stay blocked unless explicitly reviewed.
+- The preload bridge stays minimal, frozen, and wrapper-based for compatibility.
+
+## Release hygiene
+
+Windows releases are built through GitHub Actions and published to GitHub Releases with `electron-builder`.
+
+Operational requirements:
+
+- release artifacts must be produced from tagged commits only
+- installer publishing tokens live in CI secrets, not in the repository
+- update metadata must come from the same release channel that the app uses at runtime
+- any fallback update feed must be treated as legacy and non-default

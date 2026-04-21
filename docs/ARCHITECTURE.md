@@ -13,6 +13,12 @@ Top-level product model:
 
 This matters because older parts of the codebase still use legacy tab names internally. The intended product is the four-area model, not the legacy many-tab model.
 
+Important correction:
+
+- the current UX implementation is still transitional
+- the current renderer structure is **not** the final UX source of truth
+- a future serious redesign is expected to challenge page composition, routing weight, shell responsibilities, and interaction patterns from first principles
+
 ## 2. Main process architecture
 
 `electron/main.ts` wires the app together.
@@ -53,6 +59,11 @@ Main-process responsibilities:
 - `coverageCatalogService.ts`
 - `trustExplainerService.ts`
 
+#### Packaging / updates
+- `updateChecker.ts`
+- `.github/workflows/release.yml`
+- `docs/release-ops.md`
+
 #### Windows adapters
 - `electron/windowsSources/`
 
@@ -72,6 +83,10 @@ The shell handles:
 - shared overlays
 - command palette
 - cross-area UI state orchestration
+
+It still carries legacy internals, but the intended product model is already the four-area shell with legacy workspaces treated as secondary tools or routed subflows.
+
+Do not assume that keeping `AppShell` as the central UX orchestrator is the right long-term move. It is currently a technical container, not proof that the UX structure should remain as-is.
 
 Top-level product pages:
 - `src/features/home/HomePage.tsx`
@@ -102,6 +117,13 @@ State lives in `src/store/` and feature slices. Large renderer changes should pr
 - installed-app-aware protection stays active
 - AI should receive structured summaries, not raw logs
 
+### Electron security constraints
+- `contextIsolation` stays enabled
+- `nodeIntegration` stays disabled
+- `sandbox` stays enabled
+- arbitrary navigation and new windows stay blocked
+- runtime permission prompts default to deny unless explicitly reviewed
+
 ## 7. Where redesign work should usually land
 
 ### Product/IA redesign
@@ -130,6 +152,12 @@ State lives in `src/store/` and feature slices. Large renderer changes should pr
 - `electron/processProfiler.ts`
 - `electron/systemDiagnostics.ts`
 - `src/features/performance/`
+
+### Release / desktop ops
+- `package.json`
+- `electron/updateChecker.ts`
+- `.github/workflows/release.yml`
+- `docs/release-ops.md`
 
 ## 8. Recommended analysis sequence for ChatGPT
 

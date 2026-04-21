@@ -13,6 +13,23 @@ Cleanup Pilot Desktop is a local-first maintenance suite for Windows 11. The pro
 
 The design goal is not to expose every engine at once. The goal is to surface the next safe action clearly and keep technical detail behind focused views.
 
+## Current UX status
+
+The product IA has already moved to `Home / Cleaner / Optimize / Vault`, but the current UX should still be treated as **transitional**, not final.
+
+Important:
+
+- the app is **not** yet at the level of a full industrial redesign
+- some surfaces still feel like a legacy tool shell with calmer chrome on top
+- future redesign work should be willing to **rethink flows from first principles**, not preserve current layouts by default
+
+If you are using ChatGPT to redesign the product, read:
+
+- `CHATGPT_CONTEXT.md`
+- `docs/PRODUCT_REDESIGN_BRIEF.md`
+- `docs/UX_RESET_BRIEF.md`
+- `docs/CHATGPT_ANALYSIS_GUIDE.md`
+
 ## Product principles
 
 - `Safety-first`: cleanup stays quarantine-first; system changes stay preview-first and reversible
@@ -97,6 +114,8 @@ npm run build
 ```bash
 npm run test:e2e
 npm run benchmark
+npm run package:win
+npm run release
 ```
 
 ## Architecture summary
@@ -123,6 +142,24 @@ The renderer is split by product area. `AppShell` is intentionally thinner than 
 
 Each product area is meant to expose summary first and detail on demand.
 
+## Packaging and updates
+
+Production packaging is standardized on a single Windows path:
+
+- `electron-builder`
+- `NSIS`
+- `GitHub Releases`
+- `electron-updater`
+
+Operational notes:
+
+- local packaging: `npm run package:win`
+- tagged release publish: `npm run release`
+- release workflow: `.github/workflows/release.yml`
+- release ops guide: `docs/release-ops.md`
+
+Code signing is currently `no especificado`. The repo now includes release plumbing and placeholders, but not a checked-in certificate or signing secret.
+
 ## Testing status
 
 At the time of publishing, the local validation target is:
@@ -130,6 +167,8 @@ At the time of publishing, the local validation target is:
 - `npm run typecheck` passes
 - `npm run test -- --runInBand` passes
 - `npm run build` passes
+- `npm run test:e2e` passes against the local renderer with `desktopApi` stubs
+- `npm run benchmark` produces synthetic renderer/IPC/bundle baselines
 
 ## What still needs improvement
 

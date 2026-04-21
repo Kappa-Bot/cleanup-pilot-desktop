@@ -15,7 +15,12 @@
 - `CHATGPT_CONTEXT.md`
 - `docs/ARCHITECTURE.md`
 - `docs/PRODUCT_REDESIGN_BRIEF.md`
+- `docs/UX_RESET_BRIEF.md`
 - `docs/CHATGPT_ANALYSIS_GUIDE.md`
+- `docs/product-audit.md`
+- `docs/component-mapping.md`
+- `docs/ux/wireframes.md`
+- `docs/release-ops.md`
 - `electron/ipc.ts`
 - `electron/types.ts`
 - `src/types.ts`
@@ -44,4 +49,6 @@
 npm run typecheck
 npm run test -- --runInBand
 npm run build
+npm run test:e2e
+npm run benchmark
 ```

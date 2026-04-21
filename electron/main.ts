@@ -31,6 +31,41 @@ import { CoverageCatalogService } from "./coverageCatalogService";
 import { TrustExplainerService } from "./trustExplainerService";
 
 const isDev = !app.isPackaged;
+const trustedDevOrigin = "http://localhost:5173";
+
+function isTrustedNavigationUrl(targetUrl: string): boolean {
+  try {
+    const parsed = new URL(targetUrl);
+    if (isDev) {
+      return parsed.origin === trustedDevOrigin;
+    }
+    return parsed.protocol === "file:";
+  } catch {
+    return false;
+  }
+}
+
+function installWindowGuards(window: BrowserWindow): void {
+  const { webContents } = window;
+
+  webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  webContents.on("will-navigate", (event, targetUrl) => {
+    if (!isTrustedNavigationUrl(targetUrl)) {
+      event.preventDefault();
+    }
+  });
+  webContents.on("will-redirect", (event, targetUrl) => {
+    if (!isTrustedNavigationUrl(targetUrl)) {
+      event.preventDefault();
+    }
+  });
+  webContents.on("will-attach-webview", (event) => {
+    event.preventDefault();
+  });
+  webContents.session.setPermissionRequestHandler((_webContents, _permission, callback) => {
+    callback(false);
+  });
+}
 
 async function createMainWindow(): Promise<void> {
   const window = new BrowserWindow({
@@ -41,9 +76,16 @@ async function createMainWindow(): Promise<void> {
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      sandbox: true,
+      webSecurity: true,
+      webviewTag: false,
+      devTools: isDev,
+      allowRunningInsecureContent: false
     }
   });
+
+  installWindowGuards(window);
 
   if (isDev) {
     await window.loadURL("http://localhost:5173");

@@ -1,5 +1,11 @@
-import React, { Suspense, lazy, useEffect, useMemo, useState } from "react";
+import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { useAppStore } from "../../store";
+import {
+  PERFORMANCE_TAB_PREFS_KEY,
+  buildPerformanceTabPrefsPayload,
+  clampPerformanceSampleInterval,
+  parsePerformanceTabPrefs
+} from "./performanceTabPrefs";
 
 const DashboardView = lazy(() => import("./DashboardView").then((module) => ({ default: module.DashboardView })));
 const StartupView = lazy(() => import("./StartupView").then((module) => ({ default: module.StartupView })));
@@ -14,16 +20,6 @@ interface PerformanceTabProps {
   pinnedMonitoring: boolean;
   onStatusChange?: (message: string) => void;
 }
-
-interface PerformanceTabPreferences {
-  autoRecoverEnabled: boolean;
-  preferredSampleIntervalMs: number;
-  showAdvancedControls?: boolean;
-  showHeroStrip?: boolean;
-  preferredView?: ReturnType<typeof useAppStore.getState>["activePerformanceView"];
-}
-
-const PERFORMANCE_TAB_PREFS_KEY = "cleanup-pilot.performanceTabPrefs.v2";
 
 const views: Array<{ id: ReturnType<typeof useAppStore.getState>["activePerformanceView"]; label: string }> = [
   { id: "dashboard", label: "Dashboard" },
@@ -77,39 +73,30 @@ export function PerformanceTab({ sampleIntervalMs, pinnedMonitoring, onStatusCha
   const [isDocumentVisible, setIsDocumentVisible] = useState(() =>
     typeof document === "undefined" ? true : document.visibilityState === "visible"
   );
+  const bootstrapTokenRef = useRef(0);
+  const persistedPrefsRef = useRef("");
 
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(PERFORMANCE_TAB_PREFS_KEY);
-      if (!raw) {
-        return;
-      }
-      const parsed = JSON.parse(raw) as Partial<PerformanceTabPreferences>;
-      if (typeof parsed.autoRecoverEnabled === "boolean") {
-        setAutoRecoverEnabled(parsed.autoRecoverEnabled);
-      }
-      if (typeof parsed.showAdvancedControls === "boolean") {
-        setShowAdvancedControls(parsed.showAdvancedControls);
-      }
-      if (typeof parsed.showHeroStrip === "boolean") {
-        setShowHeroStrip(parsed.showHeroStrip);
-      }
-      if (
-        typeof parsed.preferredSampleIntervalMs === "number" &&
-        Number.isFinite(parsed.preferredSampleIntervalMs) &&
-        parsed.preferredSampleIntervalMs >= 500 &&
-        parsed.preferredSampleIntervalMs <= 60000
-      ) {
-        setPendingSampleIntervalMs(String(Math.round(parsed.preferredSampleIntervalMs)));
-      }
-      if (
-        parsed.preferredView &&
-        views.some((item) => item.id === parsed.preferredView)
-      ) {
-        setView(parsed.preferredView);
-      }
-    } catch {
-      // Ignore local storage parsing errors.
+    const rawPrefs = window.localStorage.getItem(PERFORMANCE_TAB_PREFS_KEY);
+    persistedPrefsRef.current = rawPrefs ?? "";
+    const prefs = parsePerformanceTabPrefs(rawPrefs);
+    if (!prefs) {
+      return;
+    }
+    if (typeof prefs.autoRecoverEnabled === "boolean") {
+      setAutoRecoverEnabled(prefs.autoRecoverEnabled);
+    }
+    if (typeof prefs.showAdvancedControls === "boolean") {
+      setShowAdvancedControls(prefs.showAdvancedControls);
+    }
+    if (typeof prefs.showHeroStrip === "boolean") {
+      setShowHeroStrip(prefs.showHeroStrip);
+    }
+    if (typeof prefs.preferredSampleIntervalMs === "number") {
+      setPendingSampleIntervalMs(String(prefs.preferredSampleIntervalMs));
+    }
+    if (prefs.preferredView && views.some((item) => item.id === prefs.preferredView)) {
+      setView(prefs.preferredView);
     }
   }, [setView]);
 
@@ -127,15 +114,19 @@ export function PerformanceTab({ sampleIntervalMs, pinnedMonitoring, onStatusCha
   }, []);
 
   useEffect(() => {
+    const payload = buildPerformanceTabPrefsPayload({
+      autoRecoverEnabled,
+      preferredSampleIntervalMs: clampPerformanceSampleInterval(Number(pendingSampleIntervalMs) || sampleIntervalMs, sampleIntervalMs),
+      showAdvancedControls,
+      showHeroStrip,
+      preferredView: activeView
+    });
+    if (persistedPrefsRef.current === payload) {
+      return;
+    }
+    persistedPrefsRef.current = payload;
     try {
-      const payload: PerformanceTabPreferences = {
-        autoRecoverEnabled,
-        preferredSampleIntervalMs: Math.max(500, Math.min(60000, Number(pendingSampleIntervalMs) || sampleIntervalMs)),
-        showAdvancedControls,
-        showHeroStrip,
-        preferredView: activeView
-      };
-      window.localStorage.setItem(PERFORMANCE_TAB_PREFS_KEY, JSON.stringify(payload));
+      window.localStorage.setItem(PERFORMANCE_TAB_PREFS_KEY, payload);
     } catch {
       // Ignore local storage write errors.
     }
@@ -143,18 +134,28 @@ export function PerformanceTab({ sampleIntervalMs, pinnedMonitoring, onStatusCha
 
   useEffect(() => {
     if (!isDocumentVisible) {
+      bootstrapTokenRef.current += 1;
       return;
     }
+    const bootstrapToken = ++bootstrapTokenRef.current;
     const bootstrapMonitoring = async () => {
       const state = useAppStore.getState();
       if (state.isMonitoring && state.monitorSessionId) {
         await syncMonitoringSession();
         return;
       }
+      if (bootstrapTokenRef.current !== bootstrapToken) {
+        return;
+      }
       await startMonitoring(sampleIntervalMs);
-      onStatusChange?.("Performance monitoring started.");
+      if (bootstrapTokenRef.current === bootstrapToken) {
+        onStatusChange?.("Performance monitoring started.");
+      }
     };
     void bootstrapMonitoring();
+    return () => {
+      bootstrapTokenRef.current += 1;
+    };
   }, [isDocumentVisible, onStatusChange, sampleIntervalMs, startMonitoring, syncMonitoringSession]);
 
   useEffect(() => {
@@ -186,7 +187,7 @@ export function PerformanceTab({ sampleIntervalMs, pinnedMonitoring, onStatusCha
     };
   }, [activeView, isDocumentVisible, isMonitoring]);
 
-  const preferredSampleInterval = Math.max(500, Math.min(60000, Number(pendingSampleIntervalMs) || sampleIntervalMs));
+  const preferredSampleInterval = clampPerformanceSampleInterval(Number(pendingSampleIntervalMs) || sampleIntervalMs, sampleIntervalMs);
   const liveInterval = monitorSampleIntervalMs || preferredSampleInterval;
   const sinceLastFrameMs = lastPerformanceFrameAt ? Math.max(0, nowTick - lastPerformanceFrameAt) : 0;
   const staleThresholdMs = Math.max(8_000, liveInterval * 4);

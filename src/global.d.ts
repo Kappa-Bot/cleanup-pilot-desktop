@@ -32,6 +32,8 @@ import {
   SchedulerSettings,
   SchedulerStatus,
   SettingsPayload,
+  SmartCheckExecuteResponse,
+  SmartCheckPreviewResponse,
   SmartCheckRun,
   StorageScanResponse,
   SystemDoctorReport,
@@ -98,19 +100,11 @@ declare global {
       previewSmartCheck: (
         runId: string,
         selectedIssueIds: string[]
-      ) => Promise<{
-        cleanupPreview?: CleanupPreviewResponse;
-        optimizationPreview?: OptimizationPreviewResponse;
-        warnings: string[];
-      }>;
+      ) => Promise<SmartCheckPreviewResponse>;
       executeSmartCheck: (
         runId: string,
         selectedIssueIds: string[]
-      ) => Promise<{
-        cleanup?: import("./types").CleanupExecuteResponse;
-        optimizations?: OptimizationExecutionResult;
-        warnings: string[];
-      }>;
+      ) => Promise<SmartCheckExecuteResponse>;
       getCoverageCatalog: () => Promise<CoverageCatalogResponse>;
       explainFindingTrust: (findingId: string) => Promise<TrustExplanationResponse>;
       setScheduler: (

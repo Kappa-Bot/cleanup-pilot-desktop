@@ -18,10 +18,11 @@ A strong prompt usually includes:
 2. `CHATGPT_CONTEXT.md`
 3. `docs/ARCHITECTURE.md`
 4. `docs/PRODUCT_REDESIGN_BRIEF.md`
-5. `electron/types.ts`
-6. `src/types.ts`
-7. `electron/ipc.ts`
-8. the specific feature or engine files involved
+5. `docs/UX_RESET_BRIEF.md`
+6. `electron/types.ts`
+7. `src/types.ts`
+8. `electron/ipc.ts`
+9. the specific feature or engine files involved
 
 ## Good requests for ChatGPT
 
@@ -30,6 +31,8 @@ Ask for:
 - information architecture critique
 - what should and should not be first-load UI
 - how to make the app objectively stronger than CCleaner in trust and clarity
+- whether the current UX should be partially preserved or rebuilt from zero
+- what should be deleted, not just improved
 
 ### Cleanup safety
 Ask for:
@@ -69,6 +72,17 @@ The strongest ChatGPT sessions usually:
 - keep contracts aligned across renderer and electron
 - run `typecheck`, `test`, and `build`
 - update docs when architecture changes
+
+## Important warning for future redesign sessions
+
+Do not treat the current UX as a finished redesign baseline.
+
+If asked for a “real” redesign, the correct default is:
+
+- challenge the current layout aggressively
+- remove noise instead of relocating it
+- prefer new flows over preserving historical tab structure
+- optimize for product feel, not just functional completeness
 
 ## If asking ChatGPT to redesign brutally
 

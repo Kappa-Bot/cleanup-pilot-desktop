@@ -2,12 +2,15 @@ import {
   CleanupCategory,
   DriverPerformanceSummary,
   DriverScanResponse,
+  HealthSubscore,
+  HealthTrendState,
   HomeSummarySnapshot,
   OptimizationActionSuggestion,
   ProductIssueCard,
   ProtectedFindingRejection,
   ScanFinding,
-  SystemSnapshot
+  SystemSnapshot,
+  SystemSnapshotHistoryPoint
 } from "./types";
 
 const CLEANUP_LABELS: Record<CleanupCategory, string> = {
@@ -40,6 +43,63 @@ function averageBenefit(actions: OptimizationActionSuggestion[]): number {
   return Math.round(actions.reduce((sum, item) => sum + item.estimatedBenefitScore, 0) / actions.length);
 }
 
+function clampScore(value: number): number {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function scoreStatus(score: number): HealthSubscore["status"] {
+  if (score >= 80) {
+    return "healthy";
+  }
+  if (score >= 60) {
+    return "watch";
+  }
+  return "action";
+}
+
+function createTrend(current: number, previous?: number): HealthTrendState {
+  if (previous === undefined || !Number.isFinite(previous)) {
+    return {
+      direction: "unknown",
+      delta: 0,
+      label: "Trend not available yet",
+      windowLabel: "Need more history"
+    };
+  }
+  const delta = Math.round(current - previous);
+  if (Math.abs(delta) <= 1) {
+    return {
+      direction: "flat",
+      delta,
+      label: "Health stayed flat",
+      windowLabel: "vs last snapshot"
+    };
+  }
+  if (delta > 0) {
+    return {
+      direction: "up",
+      delta,
+      label: `Health improved ${delta} point${delta === 1 ? "" : "s"}`,
+      windowLabel: "vs last snapshot"
+    };
+  }
+  const magnitude = Math.abs(delta);
+  return {
+    direction: "down",
+    delta,
+    label: `Health slipped ${magnitude} point${magnitude === 1 ? "" : "s"}`,
+    windowLabel: "vs last snapshot"
+  };
+}
+
+function latestPreviousHistory(history?: SystemSnapshotHistoryPoint[]): SystemSnapshotHistoryPoint | undefined {
+  if (!history || history.length < 2) {
+    return undefined;
+  }
+  const sorted = [...history].sort((left, right) => right.createdAt - left.createdAt);
+  return sorted[1];
+}
+
 export interface RankedIssue {
   card: ProductIssueCard;
   cleanupFindingIds: string[];
@@ -65,6 +125,7 @@ export interface RankIssuesInput {
   serviceActions?: OptimizationActionSuggestion[];
   taskActions?: OptimizationActionSuggestion[];
   snapshot?: SystemSnapshot;
+  history?: SystemSnapshotHistoryPoint[];
   driverScan?: DriverScanResponse;
   driverPerformance?: DriverPerformanceSummary;
 }
@@ -92,6 +153,24 @@ export class IssueRankingService {
         : "protected";
     const penalties = ranked.slice(0, 5).reduce((sum, item) => sum + this.penaltyForSeverity(item.card.severity), 0);
     const healthScore = Math.max(28, Math.min(96, 92 - penalties));
+    const previousHistory = latestPreviousHistory(input.history);
+    const previousHealthScore = previousHistory
+      ? this.estimateHistoricalHealthScore(previousHistory, input.rejected.length > 0)
+      : undefined;
+    const subscores = this.buildHealthSubscores({
+      reclaimableBytes,
+      startupSummary: input.startupSummary,
+      snapshot: input.snapshot,
+      rejected: input.rejected,
+      cleanerIssues
+    });
+    const trend = createTrend(healthScore, previousHealthScore);
+    const trustSummary = input.rejected.length
+      ? "Protection stayed active, blocked risky paths early, and any suggested change still requires a preview-first review."
+      : "Everything remains preview-first, quarantine-first, and reversible before any system change is applied.";
+    const recommendedActionSummary = recommendedIssue
+      ? `${recommendedIssue.title} is the next best action because it has the highest combined impact and confidence right now.`
+      : "No dominant issue is ahead of the rest right now.";
 
     return {
       cleanerIssues,
@@ -103,10 +182,100 @@ export class IssueRankingService {
         reclaimableBytes,
         primaryBottleneck: input.snapshot?.bottleneck.primary ?? "unknown",
         safetyState,
+        trustSummary,
+        recommendedActionSummary,
+        subscores,
+        trend,
         recommendedIssue,
         topIssues
       }
     };
+  }
+
+  private buildHealthSubscores(args: {
+    reclaimableBytes: number;
+    startupSummary?: RankIssuesInput["startupSummary"];
+    snapshot?: SystemSnapshot;
+    rejected: ProtectedFindingRejection[];
+    cleanerIssues: RankedIssue[];
+  }): HealthSubscore[] {
+    const storageScore = clampScore(92 - Math.min(42, Math.round(args.reclaimableBytes / (1024 ** 3)) * 4));
+    const startupScore = clampScore(92 - Math.round((args.startupSummary?.impactScore ?? 12) * 0.65));
+    const backgroundLoad = args.snapshot
+      ? Math.max(args.snapshot.cpu.avgUsagePct, args.snapshot.memory.usedPct, args.snapshot.diskIo.activeTimePct)
+      : 28;
+    const backgroundScore = clampScore(94 - Math.round(backgroundLoad * 0.55));
+    const safetyScore = clampScore(96 - args.rejected.length * 8 - args.cleanerIssues.filter((item) => item.card.severity === "review").length * 3);
+
+    return [
+      {
+        key: "storage",
+        label: "Storage",
+        score: storageScore,
+        status: scoreStatus(storageScore),
+        summary:
+          args.reclaimableBytes > 0
+            ? `Large disposable storage is available for review and quarantine.`
+            : "No meaningful reclaimable storage is standing out right now.",
+        evidence: [
+          `${bytesToGb(args.reclaimableBytes)} recoverable`,
+          args.cleanerIssues.length ? `${args.cleanerIssues.length} ranked cleanup lane${args.cleanerIssues.length === 1 ? "" : "s"}` : "No cleanup pressure"
+        ]
+      },
+      {
+        key: "startup",
+        label: "Startup",
+        score: startupScore,
+        status: scoreStatus(startupScore),
+        summary:
+          (args.startupSummary?.highImpactCount ?? 0) > 0
+            ? "Startup drag is measurable and has reversible actions ready."
+            : "Startup load looks controlled right now.",
+        evidence: [
+          args.startupSummary?.estimatedBootDelayMs
+            ? `${Math.round(args.startupSummary.estimatedBootDelayMs / 1000)}s estimated drag`
+            : "Boot delay not specified",
+          `${args.startupSummary?.highImpactCount ?? 0} high-impact entries`
+        ]
+      },
+      {
+        key: "background",
+        label: "Background",
+        score: backgroundScore,
+        status: scoreStatus(backgroundScore),
+        summary: args.snapshot
+          ? "Background load is based on the latest structured snapshot."
+          : "Background load is not fully specified yet.",
+        evidence: [
+          args.snapshot ? `CPU ${Math.round(args.snapshot.cpu.avgUsagePct)}% avg` : "CPU not specified",
+          args.snapshot ? `Disk ${Math.round(args.snapshot.diskIo.activeTimePct)}% active` : "Disk not specified"
+        ]
+      },
+      {
+        key: "safety",
+        label: "Safety",
+        score: safetyScore,
+        status: scoreStatus(safetyScore),
+        summary:
+          args.rejected.length > 0
+            ? "Protection guardrails are actively blocking risky cleanup paths."
+            : "Protection guardrails are active and no blocked path needs immediate review.",
+        evidence: [
+          args.rejected.length ? `${args.rejected.length} blocked candidate${args.rejected.length === 1 ? "" : "s"}` : "No blocked paths in current pass",
+          "Installed-app-aware protection"
+        ]
+      }
+    ];
+  }
+
+  private estimateHistoricalHealthScore(point: SystemSnapshotHistoryPoint, hadBlockedItems: boolean): number {
+    const basePenalty =
+      Math.round((point.cpuAvgPct ?? 0) / 8) +
+      Math.round((point.ramUsedPct ?? 0) / 10) +
+      Math.round((point.diskActivePct ?? 0) / 10) +
+      Math.round((point.startupImpactScore ?? 0) / 10) +
+      (hadBlockedItems ? 8 : 0);
+    return clampScore(92 - basePenalty);
   }
 
   private buildCleanupIssues(findings: ScanFinding[]): RankedIssue[] {

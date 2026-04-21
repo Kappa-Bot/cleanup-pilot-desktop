@@ -14,6 +14,7 @@ import { SystemDiagnostics } from "./systemDiagnostics";
 import { TaskSchedulerAnalyzer } from "./taskSchedulerAnalyzer";
 import { IssueRankingService, RankedIssue } from "./issueRankingService";
 import {
+  BeforeAfterSummary,
   CleanupCategory,
   CleanupExecuteResponse,
   CleanupPreviewResponse,
@@ -24,6 +25,8 @@ import {
   ProductIssueCard,
   ProtectedFindingRejection,
   ScanFinding,
+  SmartCheckExecuteResponse,
+  SmartCheckPreviewResponse,
   SmartCheckRun,
   SystemSnapshot
 } from "./types";
@@ -77,6 +80,15 @@ function emptySummary(): HomeSummarySnapshot {
     reclaimableBytes: 0,
     primaryBottleneck: "unknown",
     safetyState: "protected",
+    trustSummary: "Everything remains preview-first, quarantine-first, and reversible.",
+    recommendedActionSummary: "Run Smart Check to refresh cleanup, startup, and safety priorities.",
+    subscores: [],
+    trend: {
+      direction: "unknown",
+      delta: 0,
+      label: "Trend not available yet",
+      windowLabel: "Need more history"
+    },
     recommendedIssue: null,
     topIssues: []
   };
@@ -95,6 +107,66 @@ function dedupeOptimizationActions(actions: OptimizationActionSuggestion[]): Opt
   return output;
 }
 
+function selectIssueCards(run: SmartCheckInternalRun, selectedIssueIds: string[]): ProductIssueCard[] {
+  const ids = selectedIssueIds.length ? selectedIssueIds : [run.publicRun.summary.recommendedIssue?.id ?? ""];
+  return ids
+    .map((id) => run.issueBindings.get(id)?.card)
+    .filter((item): item is ProductIssueCard => Boolean(item));
+}
+
+function buildBeforeAfterSummary(args: {
+  kind: BeforeAfterSummary["kind"];
+  cleanup?: CleanupExecuteResponse;
+  optimizations?: OptimizationExecutionResult;
+  startupChangeCount: number;
+  preSnapshot?: SystemSnapshot;
+  postSnapshot?: SystemSnapshot;
+}): BeforeAfterSummary {
+  const preCpu = args.preSnapshot?.cpu.avgUsagePct;
+  const postCpu = args.postSnapshot?.cpu.avgUsagePct;
+  const backgroundReductionPct =
+    preCpu !== undefined && postCpu !== undefined ? Math.max(0, Math.round(preCpu - postCpu)) : undefined;
+
+  return {
+    kind: args.kind,
+    generatedAt: Date.now(),
+    freedBytes: args.cleanup?.freedBytes ?? 0,
+    cleanupMovedCount: args.cleanup?.movedCount ?? 0,
+    startupChangeCount: args.startupChangeCount,
+    optimizationChangeCount: args.optimizations?.appliedCount ?? 0,
+    backgroundReductionPct,
+    trustSummary: "Changes were applied with preview first and remain reversible through quarantine or optimization history."
+  };
+}
+
+function deriveLatestReport(snapshotHistory: Array<{ id: string; source: SystemSnapshot["source"] }>, db: AppDatabase): BeforeAfterSummary | undefined {
+  for (let index = 0; index < snapshotHistory.length - 1; index += 1) {
+    const current = snapshotHistory[index];
+    const previous = snapshotHistory[index + 1];
+    if (current.source === "post_cleanup" && previous.source === "pre_cleanup") {
+      const postSnapshot = db.getSystemSnapshot(current.id) ?? undefined;
+      const preSnapshot = db.getSystemSnapshot(previous.id) ?? undefined;
+      return buildBeforeAfterSummary({
+        kind: "cleanup",
+        startupChangeCount: 0,
+        preSnapshot,
+        postSnapshot
+      });
+    }
+    if (current.source === "post_optimization" && previous.source === "pre_optimization") {
+      const postSnapshot = db.getSystemSnapshot(current.id) ?? undefined;
+      const preSnapshot = db.getSystemSnapshot(previous.id) ?? undefined;
+      return buildBeforeAfterSummary({
+        kind: "optimization",
+        startupChangeCount: 0,
+        preSnapshot,
+        postSnapshot
+      });
+    }
+  }
+  return undefined;
+}
+
 export class SmartCheckService {
   private readonly runs = new Map<string, SmartCheckInternalRun>();
   private latestCompletedRunId = "";
@@ -109,6 +181,7 @@ export class SmartCheckService {
         id: runId,
         startedAt: Date.now(),
         status: "running",
+        mode,
         summary: emptySummary(),
         cleaner: {
           findingsCount: 0,
@@ -140,13 +213,10 @@ export class SmartCheckService {
     return { run: run.publicRun };
   }
 
-  async preview(runId: string, selectedIssueIds: string[]): Promise<{
-    cleanupPreview?: CleanupPreviewResponse;
-    optimizationPreview?: OptimizationPreviewResponse;
-    warnings: string[];
-  }> {
+  async preview(runId: string, selectedIssueIds: string[]): Promise<SmartCheckPreviewResponse> {
     const run = this.getRun(runId);
     const { cleanupSelection, optimizationActions } = this.resolveSelection(run, selectedIssueIds);
+    const selectedIssues = selectIssueCards(run, selectedIssueIds);
     const warnings: string[] = [];
     let cleanupPreview: CleanupPreviewResponse | undefined;
     let optimizationPreview: OptimizationPreviewResponse | undefined;
@@ -161,32 +231,40 @@ export class SmartCheckService {
       warnings.push("The selected Smart Check issues do not have a previewable cleanup or reversible optimization action yet.");
     }
 
-    return { cleanupPreview, optimizationPreview, warnings };
+    return {
+      cleanupPreview,
+      optimizationPreview,
+      warnings,
+      selectedIssues,
+      trustSummary: run.publicRun.summary.trustSummary
+    };
   }
 
-  async execute(runId: string, selectedIssueIds: string[]): Promise<{
-    cleanup?: CleanupExecuteResponse;
-    optimizations?: OptimizationExecutionResult;
-    warnings: string[];
-  }> {
+  async execute(runId: string, selectedIssueIds: string[]): Promise<SmartCheckExecuteResponse> {
     const run = this.getRun(runId);
     const { cleanupSelection, optimizationActions } = this.resolveSelection(run, selectedIssueIds);
+    const selectedIssues = selectIssueCards(run, selectedIssueIds);
     const warnings: string[] = [];
     let cleanup: CleanupExecuteResponse | undefined;
     let optimizations: OptimizationExecutionResult | undefined;
+    let preCleanupSnapshot: SystemSnapshot | undefined;
+    let postCleanupSnapshot: SystemSnapshot | undefined;
+    let preOptimizationSnapshot: SystemSnapshot | undefined;
+    let postOptimizationSnapshot: SystemSnapshot | undefined;
 
     if (!cleanupSelection.length && !optimizationActions.length) {
       return {
+        selectedIssues,
         warnings: ["The selected Smart Check issues do not map to an executable cleanup or optimization action yet."]
       };
     }
 
     const settings = this.deps.configStore.getAll();
     if (cleanupSelection.length && settings.performanceAutoSnapshotOnCleanup) {
-      await this.captureAndStoreSnapshot("pre_cleanup");
+      preCleanupSnapshot = await this.captureAndStoreSnapshot("pre_cleanup");
     }
     if (optimizationActions.length && settings.performanceAutoSnapshotOnOptimization) {
-      await this.captureAndStoreSnapshot("pre_optimization");
+      preOptimizationSnapshot = await this.captureAndStoreSnapshot("pre_optimization");
     }
 
     if (cleanupSelection.length) {
@@ -201,10 +279,10 @@ export class SmartCheckService {
     }
 
     if (cleanupSelection.length && settings.performanceAutoSnapshotOnCleanup) {
-      await this.captureAndStoreSnapshot("post_cleanup");
+      postCleanupSnapshot = await this.captureAndStoreSnapshot("post_cleanup");
     }
     if (optimizationActions.length && settings.performanceAutoSnapshotOnOptimization) {
-      await this.captureAndStoreSnapshot("post_optimization");
+      postOptimizationSnapshot = await this.captureAndStoreSnapshot("post_optimization");
     }
 
     if (cleanup?.failedCount) {
@@ -214,7 +292,23 @@ export class SmartCheckService {
       warnings.push(`${optimizations.failedCount} optimization change${optimizations.failedCount === 1 ? "" : "s"} failed during Smart Check execution.`);
     }
 
-    return { cleanup, optimizations, warnings };
+    const report = buildBeforeAfterSummary({
+      kind: cleanup && optimizations ? "smartcheck" : cleanup ? "cleanup" : "optimization",
+      cleanup,
+      optimizations,
+      startupChangeCount: optimizationActions.filter((item) => item.targetKind === "startup_entry").length,
+      preSnapshot: preOptimizationSnapshot ?? preCleanupSnapshot,
+      postSnapshot: postOptimizationSnapshot ?? postCleanupSnapshot
+    });
+
+    run.publicRun.report = report;
+    run.publicRun.summary = {
+      ...run.publicRun.summary,
+      latestReport: report
+    };
+    this.summaryCache = null;
+
+    return { cleanup, optimizations, warnings, selectedIssues, report };
   }
 
   async captureHomeSnapshot(): Promise<HomeSummarySnapshot> {
@@ -306,6 +400,7 @@ export class SmartCheckService {
       this.deps.driverScanService.scanPerformanceSummary()
     ]);
     this.deps.db.addSystemSnapshot(snapshot);
+    const history = this.deps.db.listSystemSnapshotHistory({ limit: 12 });
 
     const ranked = this.deps.issueRankingService.rankIssues({
       findings: scanResult.findings,
@@ -315,9 +410,11 @@ export class SmartCheckService {
       serviceActions: services.suggestedActions,
       taskActions: tasks.suggestedActions,
       snapshot,
+      history,
       driverScan,
       driverPerformance
     });
+    const latestReport = deriveLatestReport(history, this.deps.db);
 
     const issueBindings = new Map<string, RankedIssue>();
     for (const issue of [...ranked.cleanerIssues, ...ranked.optimizeIssues]) {
@@ -337,7 +434,13 @@ export class SmartCheckService {
         startedAt: Date.now(),
         completedAt: Date.now(),
         status: "completed",
-        summary: ranked.summary,
+        mode,
+        summary: latestReport
+          ? {
+              ...ranked.summary,
+              latestReport
+            }
+          : ranked.summary,
         cleaner: {
           findingsCount: scanResult.summary.findingsCount,
           selectedCount,
@@ -349,7 +452,8 @@ export class SmartCheckService {
           performanceIssues: ranked.optimizeIssues.filter((item) => item.card.domain === "performance").length,
           driverIssues: ranked.optimizeIssues.filter((item) => item.card.domain === "drivers").length,
           groupedIssues: ranked.optimizeIssues.map((item) => item.card)
-        }
+        },
+        report: latestReport
       },
       findings: scanResult.findings,
       rejected: scanResult.rejected,
@@ -370,8 +474,9 @@ export class SmartCheckService {
     return { cleanupSelection, optimizationActions };
   }
 
-  private async captureAndStoreSnapshot(source: SystemSnapshot["source"]): Promise<void> {
+  private async captureAndStoreSnapshot(source: SystemSnapshot["source"]): Promise<SystemSnapshot> {
     const snapshot = await this.deps.systemDiagnostics.captureSnapshot({ source, sampleCount: 1, sampleIntervalMs: 400 });
     this.deps.db.addSystemSnapshot(snapshot);
+    return snapshot;
   }
 }

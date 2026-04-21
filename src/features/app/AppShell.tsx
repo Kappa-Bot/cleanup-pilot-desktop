@@ -131,6 +131,20 @@ const sectionDefaultTab: Record<TopLevelSection, TabKey> = {
   vault: "quarantine"
 };
 
+const sectionSecondaryTabs: Record<TopLevelSection, TabKey[]> = {
+  home: ["scan", "cleanup", "ai", "duplicates", "drivers", "performance", "quarantine", "settings"],
+  cleaner: ["scan", "cleanup", "ai", "duplicates", "safety"],
+  optimize: ["performance", "drivers"],
+  vault: ["quarantine", "settings"]
+};
+
+const sectionQuickTabs: Record<TopLevelSection, TabKey[]> = {
+  home: ["overview"],
+  cleaner: ["scan", "cleanup", "overview", "duplicates", "ai", "safety"],
+  optimize: ["performance", "drivers"],
+  vault: ["quarantine", "settings"]
+};
+
 const sectionLabel: Record<TopLevelSection, string> = {
   home: "Home",
   cleaner: "Cleaner",
@@ -1593,6 +1607,8 @@ export function AppShell() {
   const currentSection = tabToSection[tab];
   const latestPerformanceSnapshot = useAppStore((state) => state.latestSnapshot);
   const driverPerformanceSummary = useAppStore((state) => state.driverPerformanceSummary);
+  const activePerformanceView = useAppStore((state) => state.activePerformanceView);
+  const setActivePerformanceView = useAppStore((state) => state.setActivePerformanceView);
   const [settings, setSettings] = useState<AppConfig>(defaultSettings);
   const [scheduler, setScheduler] = useState<SchedulerStatus>({
     enabled: false,
@@ -4288,22 +4304,18 @@ export function AppShell() {
             </button>
           ))}
         </nav>
-
-        <details className="routebar-legacy-links">
-          <summary>Quick links</summary>
-          <div className="routebar-legacy-links-body">
-            {tabs.map((entry) => (
-              <button
-                key={`legacy:${entry}`}
-                className={tab === entry ? "legacy-link active" : "legacy-link"}
-                onClick={() => setTab(entry)}
-                type="button"
-              >
-                {tabLabel[entry]}
-              </button>
-            ))}
-          </div>
-        </details>
+        <div className="product-secondary-switcher" role="group" aria-label={`${sectionLabel[currentSection]} tools`}>
+          {sectionSecondaryTabs[currentSection].map((entry) => (
+            <button
+              key={`secondary:${entry}`}
+              className={tab === entry ? "routebar-secondary-link active" : "routebar-secondary-link"}
+              onClick={() => setTab(entry)}
+              type="button"
+            >
+              {tabLabel[entry]}
+            </button>
+          ))}
+        </div>
 
         <div className="routebar-utility routebar-utility--stacked">
           <button className="routebar-quick-action" type="button" onClick={() => setCommandPaletteOpen(true)}>
@@ -4371,6 +4383,7 @@ export function AppShell() {
             selectedFindingCount={selectedFindingSet.size}
             selectedBytesLabel={formatBytes(metrics.selectedBytes)}
             blockedCount={scanSummary.protectedRejectedCount}
+            scheduleLabel={settings.scheduleEnabled ? `Auto-clean ${dayLabel[settings.scheduleDayOfWeek]}` : "Manual only"}
           >
             {tab === "overview" && (
               <OverviewTab
@@ -4572,8 +4585,31 @@ export function AppShell() {
 
         {currentSection === "optimize" && (
           <OptimizePage
-            activeView={tab}
-            onChangeView={(view) => setTab((view === "drivers" ? "drivers" : "performance") as TabKey)}
+            activeView={
+              tab === "drivers"
+                ? "drivers"
+                : activePerformanceView === "startup"
+                  ? "startup"
+                  : activePerformanceView === "services" || activePerformanceView === "tasks"
+                    ? "background"
+                    : "performance"
+            }
+            onChangeView={(view) => {
+              if (view === "drivers") {
+                setTab("drivers");
+                return;
+              }
+              setTab("performance");
+              if (view === "startup") {
+                setActivePerformanceView("startup");
+                return;
+              }
+              if (view === "background") {
+                setActivePerformanceView("services");
+                return;
+              }
+              setActivePerformanceView("dashboard");
+            }}
             bottleneckLabel={
               latestPerformanceSnapshot?.bottleneck.primary
                 ? latestPerformanceSnapshot.bottleneck.primary.replace(/_/g, " ")
@@ -4583,6 +4619,18 @@ export function AppShell() {
               latestPerformanceSnapshot ? `${latestPerformanceSnapshot.startup.impactScore}/100` : "Snapshot pending"
             }
             driverRiskLabel={driverPerformanceSummary ? driverPerformanceSummary.latencyRisk : "Not scanned"}
+            onRunOneClickFocus={() => {
+              setTab("performance");
+              if ((latestPerformanceSnapshot?.startup.impactScore ?? 0) >= 55) {
+                setActivePerformanceView("startup");
+                return;
+              }
+              if (latestPerformanceSnapshot?.bottleneck.primary === "drivers") {
+                setTab("drivers");
+                return;
+              }
+              setActivePerformanceView("dashboard");
+            }}
           >
             {tab === "drivers" && (
               <DriversTab
@@ -4657,6 +4705,11 @@ export function AppShell() {
             activeQuarantineCount={quarantineActiveCount}
             totalRecords={quarantineTotalCount}
             retentionLabel={`${settings.quarantineRetentionDays} days`}
+            latestReportLabel={
+              latestPerformanceSnapshot
+                ? `Latest snapshot ${latestPerformanceSnapshot.source.replace(/_/g, " ")}`
+                : "No recent report"
+            }
           >
             {tab === "settings" && (
               <SettingsTab

@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { CoverageCatalogResponse, HomeSummarySnapshot, ProductIssueCard } from "../../types";
+import type {
+  CoverageCatalogResponse,
+  HealthSubscore,
+  HomeSummarySnapshot,
+  ProductIssueCard
+} from "../../types";
 import { DecisionPanel } from "../shared/DecisionPanel";
 import { EmptyState } from "../shared/EmptyState";
 import { IssueCard } from "../shared/IssueCard";
@@ -25,6 +30,16 @@ function safetyCopy(state: HomeSummarySnapshot["safetyState"]): string {
 
 function bottleneckLabel(value: HomeSummarySnapshot["primaryBottleneck"]): string {
   return value === "unknown" ? "No dominant bottleneck" : value.replace(/_/g, " ");
+}
+
+function subscoreToneClass(status: HealthSubscore["status"]): string {
+  if (status === "action") {
+    return "tone-high";
+  }
+  if (status === "watch") {
+    return "tone-medium";
+  }
+  return "tone-low";
 }
 
 export function HomePage({ formatBytes, onOpenCleaner, onOpenOptimize, onOpenVault }: HomePageProps) {
@@ -90,7 +105,7 @@ export function HomePage({ formatBytes, onOpenCleaner, onOpenOptimize, onOpenVau
 
   const activeIssue = useMemo(() => {
     if (!snapshot?.topIssues.length) {
-      return null;
+      return snapshot?.recommendedIssue ?? null;
     }
     return snapshot.topIssues.find((item) => item.id === activeIssueId) ?? snapshot.recommendedIssue ?? snapshot.topIssues[0] ?? null;
   }, [activeIssueId, snapshot]);
@@ -122,16 +137,22 @@ export function HomePage({ formatBytes, onOpenCleaner, onOpenOptimize, onOpenVau
     return <EmptyState kicker="Home" title="Summary unavailable" summary={status} actionLabel="Retry" onAction={() => void loadSummary()} />;
   }
 
+  const subscores = (snapshot.subscores ?? []).slice(0, 4);
+  const report = snapshot.latestReport;
+  const trustSummary = snapshot.trustSummary ?? "Everything remains preview-first, quarantine-first, and reversible.";
+  const trend = snapshot.trend ?? {
+    direction: "unknown" as const,
+    delta: 0,
+    label: "Trend not available yet",
+    windowLabel: "Need more history"
+  };
+
   return (
     <section className="product-page product-page--home">
       <DecisionPanel
         kicker="Home"
         title={snapshot.healthScore >= 80 ? "Your PC is stable" : "Your PC needs attention"}
-        summary={
-          snapshot.recommendedIssue
-            ? `${snapshot.recommendedIssue.summary} Everything stays preview-first and reversible.`
-            : "The product is ready. Run Smart Check to refresh cleanup, performance, and safety priorities."
-        }
+        summary={snapshot.recommendedActionSummary ?? snapshot.recommendedIssue?.summary ?? "Run Smart Check to refresh priorities."}
         primaryActionLabel="Run Smart Check"
         secondaryActionLabel={snapshot.recommendedIssue ? snapshot.recommendedIssue.primaryActionLabel : "Open Cleaner"}
         onPrimaryAction={() => void runSmartCheck()}
@@ -139,10 +160,10 @@ export function HomePage({ formatBytes, onOpenCleaner, onOpenOptimize, onOpenVau
         aside={
           <MetricStrip
             items={[
-              { label: "Health score", value: snapshot.healthScore },
-              { label: "Space to recover", value: formatBytes(snapshot.reclaimableBytes) },
-              { label: "Main issue", value: bottleneckLabel(snapshot.primaryBottleneck) },
-              { label: "Safety", value: safetyCopy(snapshot.safetyState) }
+              { label: "Health score", value: snapshot.healthScore, hint: trend.label },
+              { label: "Space to recover", value: formatBytes(snapshot.reclaimableBytes), hint: "Safe wins stay grouped" },
+              { label: "Main issue", value: bottleneckLabel(snapshot.primaryBottleneck), hint: "Highest-ranked signal" },
+              { label: "Safety", value: safetyCopy(snapshot.safetyState), hint: "Protection stays active" }
             ]}
           />
         }
@@ -150,6 +171,34 @@ export function HomePage({ formatBytes, onOpenCleaner, onOpenOptimize, onOpenVau
 
       <div className="product-home-grid">
         <div className="product-home-main">
+          <article className="card product-lane-card product-lane-card--hero">
+            <header className="panel-header compact">
+              <div>
+                <small className="section-kicker">System Health 2.0</small>
+                <h3>{trend.label}</h3>
+              </div>
+              <span className="muted">{trend.windowLabel}</span>
+            </header>
+            <div className="health-subscore-grid">
+              {subscores.map((item) => (
+                <article key={item.key} className={`health-subscore-card ${subscoreToneClass(item.status)}`}>
+                  <div className="health-subscore-header">
+                    <small>{item.label}</small>
+                    <strong>{item.score}</strong>
+                  </div>
+                  <p className="muted">{item.summary}</p>
+                  <div className="issue-card-evidence">
+                    {item.evidence.slice(0, 2).map((entry) => (
+                      <span key={`${item.key}:${entry}`} className="workspace-meta-pill">
+                        {entry}
+                      </span>
+                    ))}
+                  </div>
+                </article>
+              ))}
+            </div>
+          </article>
+
           <article className="card product-lane-card">
             <header className="panel-header compact">
               <div>
@@ -159,11 +208,34 @@ export function HomePage({ formatBytes, onOpenCleaner, onOpenOptimize, onOpenVau
               <span className="muted">{status}</span>
             </header>
             {snapshot.recommendedIssue ? (
-              <IssueCard issue={snapshot.recommendedIssue} active />
+              <>
+                <IssueCard issue={snapshot.recommendedIssue} active />
+                <p className="muted product-trust-copy">{trustSummary}</p>
+              </>
             ) : (
               <p className="muted">No ranked issue is currently ahead of the rest.</p>
             )}
           </article>
+
+          {report ? (
+            <article className="card product-lane-card">
+              <header className="panel-header compact">
+                <div>
+                  <small className="section-kicker">Before / After</small>
+                  <h3>Latest maintenance report</h3>
+                </div>
+              </header>
+              <div className="product-report-strip">
+                <span className="workspace-meta-pill">{formatBytes(report.freedBytes)} recovered</span>
+                <span className="workspace-meta-pill">{report.cleanupMovedCount} cleanup item{report.cleanupMovedCount === 1 ? "" : "s"}</span>
+                <span className="workspace-meta-pill">{report.optimizationChangeCount} reversible change{report.optimizationChangeCount === 1 ? "" : "s"}</span>
+                {report.backgroundReductionPct !== undefined ? (
+                  <span className="workspace-meta-pill">{report.backgroundReductionPct}% lower background load</span>
+                ) : null}
+              </div>
+              <p className="muted product-trust-copy">{report.trustSummary}</p>
+            </article>
+          ) : null}
 
           <article className="card product-lane-card">
             <header className="panel-header compact">
@@ -183,7 +255,7 @@ export function HomePage({ formatBytes, onOpenCleaner, onOpenOptimize, onOpenVau
         <SideInspector
           kicker="Why this is safe"
           title={activeIssue?.title ?? "No issue selected"}
-          summary={activeIssue?.summary ?? "Select one of the ranked issues to review the evidence behind it."}
+          summary={activeIssue?.trustSummary ?? activeIssue?.summary ?? trustSummary}
         >
           {activeIssue ? (
             <>
@@ -194,9 +266,18 @@ export function HomePage({ formatBytes, onOpenCleaner, onOpenOptimize, onOpenVau
                   </span>
                 ))}
               </div>
+              {activeIssue.changeSummary?.length ? (
+                <div className="product-inline-list">
+                  {activeIssue.changeSummary.map((entry) => (
+                    <span key={`${activeIssue.id}:change:${entry}`} className="workspace-meta-pill">
+                      {entry}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
               <div className="row wrap">
                 <button className="btn" type="button" onClick={() => openIssueDomain(activeIssue)}>
-                  {activeIssue.primaryActionLabel}
+                  Review selected issue
                 </button>
                 <button className="btn secondary" type="button" onClick={() => void loadSummary()}>
                   Refresh Summary
@@ -204,6 +285,7 @@ export function HomePage({ formatBytes, onOpenCleaner, onOpenOptimize, onOpenVau
               </div>
             </>
           ) : null}
+          <p className="muted product-trust-copy">{trustSummary}</p>
           {catalog ? (
             <details className="settings-advanced-panel">
               <summary>Coverage snapshot</summary>

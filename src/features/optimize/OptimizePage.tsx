@@ -9,11 +9,14 @@ interface OptimizePageProps {
   bottleneckLabel: string;
   startupImpactLabel: string;
   driverRiskLabel: string;
+  onRunOneClickFocus?: () => void;
   children: ReactNode;
 }
 
 const optimizeViews = [
   { id: "performance", label: "Performance", hint: "Primary issue first" },
+  { id: "startup", label: "Startup Optimizer", hint: "Keep, disable, delay" },
+  { id: "background", label: "Background Load", hint: "Services and tasks" },
   { id: "drivers", label: "Drivers", hint: "Official guidance" }
 ];
 
@@ -23,6 +26,7 @@ export function OptimizePage({
   bottleneckLabel,
   startupImpactLabel,
   driverRiskLabel,
+  onRunOneClickFocus,
   children
 }: OptimizePageProps) {
   return (
@@ -30,7 +34,9 @@ export function OptimizePage({
       <DecisionPanel
         kicker="Optimize"
         title="Focus on the main drag, not every metric at once"
-        summary="Performance, startup, services, tasks, and drivers are still available, but only the dominant issue should lead the screen."
+        summary="One-click optimization stays preview-first. Startup, background load, and driver guidance only rise when they change the decision."
+        primaryActionLabel="Open next best optimization"
+        onPrimaryAction={onRunOneClickFocus}
         aside={
           <MetricStrip
             items={[

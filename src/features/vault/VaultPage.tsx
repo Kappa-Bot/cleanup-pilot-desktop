@@ -9,6 +9,7 @@ interface VaultPageProps {
   activeQuarantineCount: number;
   totalRecords: number;
   retentionLabel: string;
+  latestReportLabel?: string;
   children: ReactNode;
 }
 
@@ -23,6 +24,7 @@ export function VaultPage({
   activeQuarantineCount,
   totalRecords,
   retentionLabel,
+  latestReportLabel,
   children
 }: VaultPageProps) {
   return (
@@ -36,7 +38,7 @@ export function VaultPage({
             items={[
               { label: "Active items", value: activeQuarantineCount },
               { label: "Vault records", value: totalRecords },
-              { label: "Retention", value: retentionLabel }
+              { label: "Retention", value: retentionLabel, hint: latestReportLabel ?? "No recent report" }
             ]}
           />
         }

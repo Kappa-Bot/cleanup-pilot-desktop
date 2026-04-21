@@ -4553,9 +4553,93 @@ button.issue-card {
   gap: 18px;
 }
 
+.product-secondary-switcher {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.routebar-secondary-link {
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.24);
+  color: rgba(226, 232, 240, 0.8);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.routebar-secondary-link.active {
+  background: rgba(96, 165, 250, 0.16);
+  border-color: rgba(96, 165, 250, 0.38);
+  color: #eff6ff;
+}
+
 .product-lane-card {
   display: grid;
   gap: 16px;
+}
+
+.product-lane-card--hero {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.028));
+}
+
+.health-subscore-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+}
+
+.health-subscore-card {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.032);
+}
+
+.health-subscore-card.tone-low {
+  box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.12);
+}
+
+.health-subscore-card.tone-medium {
+  box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.12);
+}
+
+.health-subscore-card.tone-high {
+  box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.14);
+}
+
+.health-subscore-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.health-subscore-header small {
+  color: rgba(226, 232, 240, 0.68);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.health-subscore-header strong {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.product-report-strip,
+.product-inline-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.product-trust-copy {
+  max-width: 72ch;
+  line-height: 1.55;
 }
 
 .empty-state-card {
@@ -4571,5 +4655,9 @@ button.issue-card {
   .decision-panel,
   .product-home-grid {
     grid-template-columns: 1fr;
+  }
+
+  .product-secondary-switcher {
+    width: 100%;
   }
 }

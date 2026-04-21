@@ -1,6 +1,6 @@
 # Cleanup Pilot Desktop: ChatGPT Context
 
-Last updated: 2026-04-14
+Last updated: 2026-04-20
 
 This document exists so future ChatGPT sessions can understand the project quickly, avoid stale assumptions, and improve the app from the right architectural level.
 
@@ -20,6 +20,25 @@ The product was redesigned around four top-level areas:
 - `Vault`
 
 This is a product decision, not just a visual one.
+
+## 2.1 Important correction: the current UX is still transitional
+
+Do **not** treat the current renderer UX as a completed redesign.
+
+The current state is better than the older many-tab shell, but it is still not the desired end-state. In practice, the app still behaves too much like a powerful tool suite with calmer wrappers instead of a truly product-grade maintenance assistant.
+
+This means future redesign work should:
+
+- be willing to rethink page structure from first principles
+- remove or relocate UI that only exists because of legacy tab structure
+- challenge the current shell instead of preserving it by default
+- optimize for calm, trust, and decisiveness over feature exposure
+
+If a future ChatGPT session is asked to “redesign the UX”, the correct default interpretation is:
+
+- **industrial-grade UX reset**
+- **not** incremental polish
+- **not** “keep the current layout but prettier”
 
 Goals:
 
@@ -202,6 +221,18 @@ New product-level IPC:
 
 The old IPC surface remains intact for compatibility.
 
+## 8.1 Current Smart Check / Home state
+
+The product now exposes richer Home and Smart Check contracts:
+
+- health subscores for `storage`, `startup`, `background`, and `safety`
+- health trend state
+- trust summary copy
+- recommended action summary
+- before/after maintenance summary when recent snapshots exist
+
+These fields are intentionally additive and mostly optional so older call sites do not break.
+
 ## 9. Safety model
 
 These rules are non-negotiable:
@@ -304,7 +335,43 @@ The repo also includes:
 - `fixtures/systems`
 - `benchmark/`
 
+Current benchmark coverage is still synthetic, but it is no longer trivial smoke only. It now includes:
+
+- IPC-style payload roundtrip
+- cleanup preview fixture summarization
+- synthetic renderer mount cost
+- bundle size reporting
+
 Use them instead of inventing fake assumptions when changing analyzers.
+
+## 15.1 Packaging and release
+
+Release readiness is now oriented around one path only:
+
+- `electron-builder`
+- `NSIS`
+- `electron-updater`
+- `GitHub Releases`
+
+Supporting files:
+
+- `.github/workflows/release.yml`
+- `docs/release-ops.md`
+
+Code signing remains `no especificado`.
+
+## 15.2 Electron hardening status
+
+The Electron shell now explicitly expects:
+
+- `contextIsolation: true`
+- `nodeIntegration: false`
+- `sandbox: true`
+- blocked `window.open`
+- blocked arbitrary navigation / redirects
+- denied runtime permission prompts
+
+If future work weakens any of those, treat it as a security regression unless there is a documented exception.
 
 ## 15. Current product assessment vs CCleaner
 

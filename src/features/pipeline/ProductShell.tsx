@@ -27,7 +27,6 @@ export function ProductShell() {
   const [scanStatus, setScanStatus] = useState("Run Smart Check to build the next safe plan.");
   const [scanStage, setScanStage] = useState<"scanning" | "findings" | "grouped">("scanning");
   const [scanProgress, setScanProgress] = useState(0);
-  const [scanEta, setScanEta] = useState("ETA about 5 sec");
   const [plan, setPlan] = useState<ActionPlanSummary | null>(null);
   const [planStatus, setPlanStatus] = useState("Build a plan to review cleanup and optimization safely.");
   const [executionProgress, setExecutionProgress] = useState<DecisionExecutionProgressEvent>(defaultExecutionProgress);
@@ -90,20 +89,6 @@ export function ProductShell() {
     window.localStorage.setItem("cleanup-pilot-theme", visualTheme);
   }, [visualTheme]);
 
-  useEffect(() => {
-    if (busy !== "scan") {
-      return undefined;
-    }
-    const startedAt = Date.now();
-    const timer = window.setInterval(() => {
-      const elapsedSec = Math.round((Date.now() - startedAt) / 1000);
-      const remainingSec = Math.max(1, 5 - elapsedSec);
-      setScanEta(`ETA about ${remainingSec} sec`);
-      setScanProgress((current) => Math.min(92, current + 7));
-    }, 420);
-    return () => window.clearInterval(timer);
-  }, [busy]);
-
   const activeHistorySession = useMemo(
     () => historySessions.find((item) => item.id === activeHistoryId) ?? historySessions[0] ?? null,
     [activeHistoryId, historySessions]
@@ -127,7 +112,6 @@ export function ProductShell() {
     setExecutionSession(null);
     setSmartCheckRun(null);
     setScanProgress(6);
-    setScanEta("ETA about 5 sec");
     setScanStage("scanning");
     setScanStatus("Scanning cleanup, startup, background load, and safety.");
     try {
@@ -219,6 +203,7 @@ export function ProductShell() {
       return;
     }
     setBusy("execute");
+    const selectedIssueIds = plan?.selectedIssueIds ?? [];
     setExecutionProgress({
       executionId: "pending",
       stage: "preparing",
@@ -228,7 +213,7 @@ export function ProductShell() {
       timestamp: Date.now()
     });
     try {
-      const { session } = await window.desktopApi.executeDecisionPlan(smartCheckRunId, []);
+      const { session } = await window.desktopApi.executeDecisionPlan(smartCheckRunId, selectedIssueIds);
       setExecutionSession(session);
       setExecutionProgress({
         executionId: session.id,
@@ -251,7 +236,7 @@ export function ProductShell() {
     } finally {
       setBusy(null);
     }
-  }, [canExecutePlan, loadHistory, smartCheckRunId]);
+  }, [canExecutePlan, loadHistory, plan?.selectedIssueIds, smartCheckRunId]);
 
   const openSessionReport = useCallback(async () => {
     await loadHistory();
@@ -345,7 +330,6 @@ export function ProductShell() {
               status={scanStatus}
               scanStage={scanStage}
               progress={scanProgress}
-              eta={scanEta}
               busy={busy}
               buckets={scanBuckets}
               onRunSmartCheck={() => void startSmartCheck()}

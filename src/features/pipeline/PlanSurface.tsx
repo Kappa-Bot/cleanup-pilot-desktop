@@ -25,7 +25,6 @@ export function PlanSurface({ plan, status, canExecutePlan, busy, onBuildPlan, o
         actionLabel={busy ? undefined : "Build plan"}
         onAction={onBuildPlan}
         loading={busy}
-        eta="Usually under 2 sec"
       />
     );
   }
@@ -39,12 +38,6 @@ export function PlanSurface({ plan, status, canExecutePlan, busy, onBuildPlan, o
         kicker="Plan"
         title={plan.assistant.title}
         summary={canExecutePlan ? plan.assistant.summary : "No cleanup or reversible optimization action is ready to execute."}
-        progress={{
-          value: canExecutePlan ? 100 : 0,
-          label: canExecutePlan ? "Preview ready" : "No action selected",
-          eta: canExecutePlan ? "Confirmation required" : "Run Smart Check again if state changed",
-          tone: canExecutePlan ? "complete" : "warning"
-        }}
         primaryActionLabel={canExecutePlan ? "Review and continue" : undefined}
         onPrimaryAction={canExecutePlan ? onReviewContinue : undefined}
         aside={

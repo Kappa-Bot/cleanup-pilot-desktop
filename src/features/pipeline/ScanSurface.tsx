@@ -12,14 +12,13 @@ interface ScanSurfaceProps {
   status: string;
   scanStage: "scanning" | "findings" | "grouped";
   progress: number;
-  eta: string;
   busy: string | null;
   buckets: DecisionIssueBucket[];
   onRunSmartCheck: () => void;
   onBuildPlan: () => void;
 }
 
-export function ScanSurface({ run, status, scanStage, progress, eta, busy, buckets, onRunSmartCheck, onBuildPlan }: ScanSurfaceProps) {
+export function ScanSurface({ run, status, scanStage, progress, busy, buckets, onRunSmartCheck, onBuildPlan }: ScanSurfaceProps) {
   if (!run) {
     return (
       <EmptyState
@@ -29,7 +28,6 @@ export function ScanSurface({ run, status, scanStage, progress, eta, busy, bucke
         actionLabel={busy === "scan" ? "Scanning..." : "Run Smart Check"}
         onAction={busy === "scan" ? undefined : onRunSmartCheck}
         loading={busy === "scan"}
-        eta={busy === "scan" ? eta : undefined}
       />
     );
   }
@@ -43,8 +41,8 @@ export function ScanSurface({ run, status, scanStage, progress, eta, busy, bucke
         progress={{
           value: progress,
           label: run.status === "completed" ? "Smart Check complete" : "Smart Check running",
-          eta: run.status === "completed" ? "Ready for plan" : eta,
-          tone: run.status === "completed" ? "complete" : run.status === "failed" ? "danger" : "active"
+          tone: run.status === "completed" ? "complete" : run.status === "failed" ? "danger" : "active",
+          indeterminate: run.status === "running"
         }}
         primaryActionLabel={run.status === "completed" ? "Build Plan" : undefined}
         onPrimaryAction={run.status === "completed" ? onBuildPlan : undefined}

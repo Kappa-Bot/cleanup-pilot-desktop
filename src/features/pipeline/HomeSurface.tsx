@@ -25,7 +25,6 @@ export function HomeSurface({ snapshot, homeStatus, loading, historySessions, on
         actionLabel={loading ? undefined : "Retry"}
         onAction={onReload}
         loading={loading}
-        eta="Usually under 1 sec"
       />
     );
   }

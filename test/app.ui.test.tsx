@@ -429,7 +429,13 @@ describe("App pipeline rebuild", () => {
       fireEvent.click(screen.getByRole("button", { name: "Apply plan" }));
     });
 
-    await waitFor(() => expect(desktopApiMock.executeDecisionPlan).toHaveBeenCalledWith("smart-1", []));
+    await waitFor(() =>
+      expect(desktopApiMock.executeDecisionPlan).toHaveBeenCalledWith("smart-1", [
+        "cleanup:safe-cache",
+        "startup:trim",
+        "safety:blocked-programfiles"
+      ])
+    );
     await waitFor(() => expect(screen.getByText("Open session report")).toBeTruthy());
 
     await act(async () => {
@@ -440,5 +446,21 @@ describe("App pipeline rebuild", () => {
     expect(screen.getByRole("heading", { name: "Smart Check session" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Undo" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Purge" })).toBeTruthy();
+  });
+
+  it("does not show invented ETAs while Smart Check is running", async () => {
+    desktopApiMock.getSmartCheckCurrent.mockImplementationOnce(
+      () => new Promise(() => undefined)
+    );
+
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Run Smart Check" })).toBeTruthy());
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Run Smart Check" }));
+    });
+
+    expect(screen.queryByText(/ETA/i)).toBeNull();
   });
 });

@@ -39,7 +39,6 @@ export function ExecuteSurface({
         progress={{
           value: executionProgress.percent,
           label: completed ? "Execution complete" : executionStageLabel(executionProgress.stage),
-          eta: completed ? "Report ready" : "Keep app open",
           tone: executionProgress.stage === "failed" ? "danger" : completed ? "complete" : "active"
         }}
         primaryActionLabel={completed ? "Open session report" : "Apply plan"}

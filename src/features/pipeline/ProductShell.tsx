@@ -7,18 +7,26 @@ import { PipelineRail } from "./PipelineRail";
 import { PlanSurface } from "./PlanSurface";
 import { ScanSurface } from "./ScanSurface";
 import { SettingsDrawer } from "./SettingsDrawer";
-import { cloneSettings, defaultExecutionProgress, groupScanIssues } from "./pipelineShared";
+import { cloneSettings, defaultExecutionProgress, groupScanIssues, type VisualTheme } from "./pipelineShared";
+
+function loadStoredTheme(): VisualTheme {
+  const stored = window.localStorage.getItem("cleanup-pilot-theme");
+  return stored === "arctic" || stored === "sand" || stored === "graphite" ? stored : "graphite";
+}
 
 export function ProductShell() {
   const [surface, setSurface] = useState<TopLevelSurface>("home");
+  const [visualTheme, setVisualTheme] = useState<VisualTheme>(() => loadStoredTheme());
   const [draftSettings, setDraftSettings] = useState<AppConfig | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [homeSnapshot, setHomeSnapshot] = useState<HomeSummarySnapshot | null>(null);
   const [homeStatus, setHomeStatus] = useState("Loading system state...");
+  const [homeLoading, setHomeLoading] = useState(true);
   const [smartCheckRun, setSmartCheckRun] = useState<SmartCheckRun | null>(null);
   const [smartCheckRunId, setSmartCheckRunId] = useState("");
   const [scanStatus, setScanStatus] = useState("Run Smart Check to build the next safe plan.");
   const [scanStage, setScanStage] = useState<"scanning" | "findings" | "grouped">("scanning");
+  const [scanProgress, setScanProgress] = useState(0);
   const [plan, setPlan] = useState<ActionPlanSummary | null>(null);
   const [planStatus, setPlanStatus] = useState("Build a plan to review cleanup and optimization safely.");
   const [executionProgress, setExecutionProgress] = useState<DecisionExecutionProgressEvent>(defaultExecutionProgress);
@@ -30,14 +38,23 @@ export function ProductShell() {
   const pollingRef = useRef<number | null>(null);
 
   const loadHome = useCallback(async () => {
+    setHomeLoading(true);
     setHomeStatus("Loading system state...");
     try {
-      const [{ snapshot }, currentSettings] = await Promise.all([window.desktopApi.getHomeSnapshot(), window.desktopApi.getSettings()]);
+      const { snapshot } = await window.desktopApi.getHomeSnapshot();
       setHomeSnapshot(snapshot);
-      setDraftSettings(cloneSettings(currentSettings));
       setHomeStatus("System state ready.");
     } catch (error) {
       setHomeStatus(error instanceof Error ? error.message : "Failed to load system state.");
+    }
+
+    try {
+      const currentSettings = await window.desktopApi.getSettings();
+      setDraftSettings(cloneSettings(currentSettings));
+    } catch {
+      setDraftSettings(null);
+    } finally {
+      setHomeLoading(false);
     }
   }, []);
 
@@ -68,18 +85,33 @@ export function ProductShell() {
     });
   }, []);
 
+  useEffect(() => {
+    window.localStorage.setItem("cleanup-pilot-theme", visualTheme);
+  }, [visualTheme]);
+
   const activeHistorySession = useMemo(
     () => historySessions.find((item) => item.id === activeHistoryId) ?? historySessions[0] ?? null,
     [activeHistoryId, historySessions]
   );
 
   const scanBuckets = useMemo(() => groupScanIssues(smartCheckRun), [smartCheckRun]);
+  const canBuildPlan = smartCheckRun?.status === "completed";
+  const canExecutePlan = Boolean((plan?.cleanupPreview?.actionCount ?? 0) > 0 || (plan?.optimizationPreview?.actions.length ?? 0) > 0);
+  const disabledSurfaces = useMemo<TopLevelSurface[]>(
+    () => [
+      ...(canBuildPlan ? [] : ["plan" as TopLevelSurface]),
+      ...(canExecutePlan ? [] : ["execute" as TopLevelSurface])
+    ],
+    [canBuildPlan, canExecutePlan]
+  );
 
   const startSmartCheck = useCallback(async () => {
     setBusy("scan");
     setSurface("scan");
     setPlan(null);
     setExecutionSession(null);
+    setSmartCheckRun(null);
+    setScanProgress(6);
     setScanStage("scanning");
     setScanStatus("Scanning cleanup, startup, background load, and safety.");
     try {
@@ -95,6 +127,7 @@ export function ProductShell() {
           setHomeSnapshot(run.summary);
           if (run.status === "running") {
             setScanStage("findings");
+            setScanProgress((current) => Math.max(current, 42));
             setScanStatus("Collecting grouped findings.");
             return;
           }
@@ -103,6 +136,7 @@ export function ProductShell() {
             pollingRef.current = null;
           }
           setScanStage("grouped");
+          setScanProgress(100);
           setScanStatus(run.status === "completed" ? "Grouped issues are ready." : `Smart Check ${run.status}.`);
           setBusy(null);
         } catch (error) {
@@ -110,11 +144,13 @@ export function ProductShell() {
             window.clearInterval(pollingRef.current);
             pollingRef.current = null;
           }
+          setScanProgress(100);
           setScanStatus(error instanceof Error ? error.message : "Smart Check failed.");
           setBusy(null);
         }
-      }, 900);
+      }, 500);
     } catch (error) {
+      setScanProgress(100);
       setScanStatus(error instanceof Error ? error.message : "Could not start Smart Check.");
       setBusy(null);
     }
@@ -140,6 +176,11 @@ export function ProductShell() {
   }, [smartCheckRunId]);
 
   const openExecute = useCallback(() => {
+    if (!canExecutePlan) {
+      setPlanStatus("Plan has no executable actions.");
+      setSurface("plan");
+      return;
+    }
     setSurface("execute");
     setExecutionProgress({
       ...defaultExecutionProgress,
@@ -147,13 +188,22 @@ export function ProductShell() {
       summary: "Plan locked. Confirm to apply it.",
       timestamp: Date.now()
     });
-  }, []);
+  }, [canExecutePlan]);
 
   const applyPlan = useCallback(async () => {
-    if (!smartCheckRunId) {
+    if (!smartCheckRunId || !canExecutePlan) {
+      setExecutionProgress({
+        executionId: "blocked",
+        stage: "failed",
+        percent: 100,
+        title: "Plan required",
+        summary: "Review a plan with executable actions before applying changes.",
+        timestamp: Date.now()
+      });
       return;
     }
     setBusy("execute");
+    const selectedIssueIds = plan?.selectedIssueIds ?? [];
     setExecutionProgress({
       executionId: "pending",
       stage: "preparing",
@@ -163,7 +213,7 @@ export function ProductShell() {
       timestamp: Date.now()
     });
     try {
-      const { session } = await window.desktopApi.executeDecisionPlan(smartCheckRunId, []);
+      const { session } = await window.desktopApi.executeDecisionPlan(smartCheckRunId, selectedIssueIds);
       setExecutionSession(session);
       setExecutionProgress({
         executionId: session.id,
@@ -186,7 +236,7 @@ export function ProductShell() {
     } finally {
       setBusy(null);
     }
-  }, [loadHistory, smartCheckRunId]);
+  }, [canExecutePlan, loadHistory, plan?.selectedIssueIds, smartCheckRunId]);
 
   const openSessionReport = useCallback(async () => {
     await loadHistory();
@@ -234,11 +284,16 @@ export function ProductShell() {
   }, [draftSettings]);
 
   return (
-    <div className="pipeline-app-shell">
+    <div
+      className="pipeline-app-shell"
+      data-theme={draftSettings?.highContrast ? "graphite" : visualTheme}
+      data-reduced-motion={draftSettings?.reducedMotion ? "true" : "false"}
+      data-high-contrast={draftSettings?.highContrast ? "true" : "false"}
+    >
       <header className="pipeline-topbar">
         <div className="pipeline-branding">
           <strong>Cleanup Pilot</strong>
-          <span className="muted">Quiet system maintenance</span>
+          <span className="muted">Local maintenance</span>
         </div>
         <div className="pipeline-topbar-actions">
           <button className="btn secondary" type="button" onClick={() => setSettingsOpen((open) => !open)}>
@@ -248,13 +303,20 @@ export function ProductShell() {
       </header>
 
       <div className="pipeline-layout">
-        <PipelineRail surface={surface} homeStatus={homeStatus} historyStatus={historyStatus} onNavigate={setSurface} />
+        <PipelineRail
+          surface={surface}
+          homeStatus={homeStatus}
+          historyStatus={historyStatus}
+          disabledSurfaces={disabledSurfaces}
+          onNavigate={setSurface}
+        />
 
         <main className="pipeline-content">
           {surface === "home" ? (
             <HomeSurface
               snapshot={homeSnapshot}
               homeStatus={homeStatus}
+              loading={homeLoading}
               historySessions={historySessions}
               onReload={() => void loadHome()}
               onRunSmartCheck={() => void startSmartCheck()}
@@ -267,6 +329,7 @@ export function ProductShell() {
               run={smartCheckRun}
               status={scanStatus}
               scanStage={scanStage}
+              progress={scanProgress}
               busy={busy}
               buckets={scanBuckets}
               onRunSmartCheck={() => void startSmartCheck()}
@@ -275,7 +338,14 @@ export function ProductShell() {
           ) : null}
 
           {surface === "plan" ? (
-            <PlanSurface plan={plan} status={planStatus} onBuildPlan={() => void buildPlan()} onReviewContinue={openExecute} />
+            <PlanSurface
+              plan={plan}
+              status={planStatus}
+              canExecutePlan={canExecutePlan}
+              busy={busy === "plan"}
+              onBuildPlan={() => void buildPlan()}
+              onReviewContinue={openExecute}
+            />
           ) : null}
 
           {surface === "execute" ? (
@@ -306,8 +376,10 @@ export function ProductShell() {
         <SettingsDrawer
           draftSettings={draftSettings}
           busy={busy}
+          visualTheme={visualTheme}
           onClose={() => setSettingsOpen(false)}
           onSave={() => void saveSettings()}
+          onVisualThemeChange={setVisualTheme}
           setDraftSettings={setDraftSettings}
         />
       ) : null}

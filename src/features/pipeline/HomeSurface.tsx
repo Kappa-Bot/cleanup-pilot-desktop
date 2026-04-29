@@ -8,15 +8,25 @@ import { bottleneckLabel, formatBytes, formatDate, safetyCopy } from "./pipeline
 interface HomeSurfaceProps {
   snapshot: HomeSummarySnapshot | null;
   homeStatus: string;
+  loading: boolean;
   historySessions: ExecutionSession[];
   onReload: () => void;
   onRunSmartCheck: () => void;
   onOpenHistory: () => void;
 }
 
-export function HomeSurface({ snapshot, homeStatus, historySessions, onReload, onRunSmartCheck, onOpenHistory }: HomeSurfaceProps) {
+export function HomeSurface({ snapshot, homeStatus, loading, historySessions, onReload, onRunSmartCheck, onOpenHistory }: HomeSurfaceProps) {
   if (!snapshot) {
-    return <EmptyState kicker="Home" title="System state unavailable" summary={homeStatus} actionLabel="Retry" onAction={onReload} />;
+    return (
+      <EmptyState
+        kicker="Home"
+        title={loading ? "Reading system state" : "System state unavailable"}
+        summary={homeStatus}
+        actionLabel={loading ? undefined : "Retry"}
+        onAction={onReload}
+        loading={loading}
+      />
+    );
   }
 
   const homeSubscores = (snapshot.subscores ?? []).slice(0, 3);
@@ -46,8 +56,8 @@ export function HomeSurface({ snapshot, homeStatus, historySessions, onReload, o
         <article className="pipeline-card">
           <header className="pipeline-card-header">
             <div>
-              <small className="section-kicker">System Health 2.0</small>
-              <h3>Keep only the important signals</h3>
+              <small className="section-kicker">Health</small>
+              <h3>Important signals only</h3>
             </div>
             <span className="muted">{snapshot.trend?.windowLabel ?? "No trend yet"}</span>
           </header>

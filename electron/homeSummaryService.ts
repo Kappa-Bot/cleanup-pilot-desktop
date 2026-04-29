@@ -5,6 +5,6 @@ export class HomeSummaryService {
   constructor(private readonly smartCheckService: SmartCheckService) {}
 
   async getSnapshot(): Promise<HomeSummarySnapshot> {
-    return this.smartCheckService.captureHomeSnapshot();
+    return this.smartCheckService.getLightweightHomeSnapshot();
   }
 }

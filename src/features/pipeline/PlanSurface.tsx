@@ -9,13 +9,24 @@ import { formatBytes } from "./pipelineShared";
 interface PlanSurfaceProps {
   plan: ActionPlanSummary | null;
   status: string;
+  canExecutePlan: boolean;
+  busy: boolean;
   onBuildPlan: () => void;
   onReviewContinue: () => void;
 }
 
-export function PlanSurface({ plan, status, onBuildPlan, onReviewContinue }: PlanSurfaceProps) {
+export function PlanSurface({ plan, status, canExecutePlan, busy, onBuildPlan, onReviewContinue }: PlanSurfaceProps) {
   if (!plan) {
-    return <EmptyState kicker="Plan" title="No plan yet" summary={status} actionLabel="Build plan" onAction={onBuildPlan} />;
+    return (
+      <EmptyState
+        kicker="Plan"
+        title={busy ? "Building plan" : "No plan yet"}
+        summary={status}
+        actionLabel={busy ? undefined : "Build plan"}
+        onAction={onBuildPlan}
+        loading={busy}
+      />
+    );
   }
 
   const cleanupBuckets = plan.issueBuckets.filter((bucket) => bucket.id === "safe_to_clean" || bucket.id === "needs_review");
@@ -26,9 +37,9 @@ export function PlanSurface({ plan, status, onBuildPlan, onReviewContinue }: Pla
       <DecisionPanel
         kicker="Plan"
         title={plan.assistant.title}
-        summary={plan.assistant.summary}
-        primaryActionLabel="Review and continue"
-        onPrimaryAction={onReviewContinue}
+        summary={canExecutePlan ? plan.assistant.summary : "No cleanup or reversible optimization action is ready to execute."}
+        primaryActionLabel={canExecutePlan ? "Review and continue" : undefined}
+        onPrimaryAction={canExecutePlan ? onReviewContinue : undefined}
         aside={
           <MetricStrip
             items={[

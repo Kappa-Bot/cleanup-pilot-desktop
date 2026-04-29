@@ -11,21 +11,23 @@ interface ScanSurfaceProps {
   run: SmartCheckRun | null;
   status: string;
   scanStage: "scanning" | "findings" | "grouped";
+  progress: number;
   busy: string | null;
   buckets: DecisionIssueBucket[];
   onRunSmartCheck: () => void;
   onBuildPlan: () => void;
 }
 
-export function ScanSurface({ run, status, scanStage, busy, buckets, onRunSmartCheck, onBuildPlan }: ScanSurfaceProps) {
+export function ScanSurface({ run, status, scanStage, progress, busy, buckets, onRunSmartCheck, onBuildPlan }: ScanSurfaceProps) {
   if (!run) {
     return (
       <EmptyState
         kicker="Scan"
-        title="Nothing scanned yet"
+        title={busy === "scan" ? "Smart Check running" : "Nothing scanned yet"}
         summary={status}
         actionLabel={busy === "scan" ? "Scanning..." : "Run Smart Check"}
         onAction={busy === "scan" ? undefined : onRunSmartCheck}
+        loading={busy === "scan"}
       />
     );
   }
@@ -36,6 +38,12 @@ export function ScanSurface({ run, status, scanStage, busy, buckets, onRunSmartC
         kicker="Scan"
         title={run.status === "completed" ? "Grouped issues" : "Scanning the machine"}
         summary={status}
+        progress={{
+          value: progress,
+          label: run.status === "completed" ? "Smart Check complete" : "Smart Check running",
+          tone: run.status === "completed" ? "complete" : run.status === "failed" ? "danger" : "active",
+          indeterminate: run.status === "running"
+        }}
         primaryActionLabel={run.status === "completed" ? "Build Plan" : undefined}
         onPrimaryAction={run.status === "completed" ? onBuildPlan : undefined}
         aside={
@@ -48,7 +56,7 @@ export function ScanSurface({ run, status, scanStage, busy, buckets, onRunSmartC
           />
         }
       />
-      <SmartActionBar items={scanStageItems} activeId={scanStage} onSelect={() => undefined} />
+      <SmartActionBar items={scanStageItems} activeId={scanStage} />
       <section className="pipeline-grid">
         <div className="pipeline-card-list">
           {buckets.map((bucket) => (

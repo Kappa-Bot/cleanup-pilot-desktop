@@ -173,6 +173,10 @@ function buildAssistant(selectedIssues: ProductIssueCard[], run: SmartCheckRun):
   };
 }
 
+function hasExecutableActions(plan: ActionPlanSummary): boolean {
+  return Boolean((plan.cleanupPreview?.actionCount ?? 0) > 0 || (plan.optimizationPreview?.actions.length ?? 0) > 0);
+}
+
 function buildSessionSummary(selectedIssues: ProductIssueCard[], reportTrust: string, cleanupMovedCount: number, optimizationChangeCount: number): string {
   if (selectedIssues.length) {
     return `${selectedIssues.length} grouped ${selectedIssues.length === 1 ? "issue was" : "issues were"} applied safely.`;
@@ -215,6 +219,9 @@ export class DecisionFlowService {
     options?: { executionId?: string; onProgress?: (event: DecisionExecutionProgressEvent) => void }
   ): Promise<DecisionExecuteResponse> {
     const plan = await this.buildPlan(runId, selectedIssueIds);
+    if (!hasExecutableActions(plan)) {
+      throw new Error("Plan has no executable actions.");
+    }
     const result = await this.deps.smartCheckService.execute(runId, plan.selectedIssueIds, options);
     const report = result.report;
     const session: ExecutionSession = {

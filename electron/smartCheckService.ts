@@ -26,12 +26,24 @@ import {
   ProductIssueCard,
   ProtectedFindingRejection,
   ScanFinding,
+  ScanResultsResponse,
   SmartCheckExecuteResponse,
   SmartCheckPreviewResponse,
   SmartCheckRun,
   SystemSnapshot
 } from "./types";
 
+const ALL_CLEANUP_CATEGORIES: CleanupCategory[] = [
+  "temp",
+  "cache",
+  "logs",
+  "crash_dumps",
+  "wsl_leftovers",
+  "minecraft_leftovers",
+  "ai_model_leftovers",
+  "installer_artifacts",
+  "duplicates"
+];
 const FAST_CATEGORIES: CleanupCategory[] = [
   "temp",
   "cache",
@@ -77,6 +89,123 @@ interface SmartCheckInternalRun {
   rejected: ProtectedFindingRejection[];
   snapshot?: SystemSnapshot;
   issueBindings: Map<string, RankedIssue>;
+}
+
+type ProcessProfilerFrame = Awaited<ReturnType<ProcessProfiler["captureSample"]>>;
+type StartupAnalysis = Awaited<ReturnType<StartupAnalyzer["scan"]>>;
+type ServiceAnalysis = Awaited<ReturnType<ServiceAnalyzer["scan"]>>;
+type TaskAnalysis = Awaited<ReturnType<TaskSchedulerAnalyzer["scan"]>>;
+type DriverScanResult = Awaited<ReturnType<DriverScanService["scan"]>>;
+type DriverPerformanceResult = Awaited<ReturnType<DriverScanService["scanPerformanceSummary"]>>;
+
+async function withFallback<T>(operation: () => Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await operation();
+  } catch {
+    return fallback;
+  }
+}
+
+function emptyCategorySummary(): ScanResultsResponse["summary"]["categories"] {
+  return Object.fromEntries(ALL_CLEANUP_CATEGORIES.map((category) => [category, { count: 0, bytes: 0 }])) as ScanResultsResponse["summary"]["categories"];
+}
+
+function emptyScanResult(runId: string): ScanResultsResponse {
+  return {
+    status: "completed",
+    findings: [],
+    rejected: [],
+    summary: {
+      runId,
+      status: "completed",
+      startedAt: Date.now(),
+      finishedAt: Date.now(),
+      processedItems: 0,
+      findingsCount: 0,
+      totalCandidateBytes: 0,
+      protectedRejectedCount: 0,
+      categories: emptyCategorySummary()
+    }
+  };
+}
+
+function emptyProcessFrame(): ProcessProfilerFrame {
+  return {
+    capturedAt: Date.now(),
+    counters: {} as ProcessProfilerFrame["counters"],
+    topProcesses: [],
+    runawayProcesses: [],
+    memoryHogs: [],
+    diskWriters: []
+  };
+}
+
+function emptyStartupAnalysis(): StartupAnalysis {
+  return {
+    entries: [],
+    summary: {
+      impactScore: 0,
+      estimatedBootDelayMs: 0,
+      highImpactCount: 0,
+      redundantCount: 0,
+      orphanCount: 0,
+      inspectOnlyCount: 0,
+      timeline: []
+    },
+    suggestedActions: []
+  };
+}
+
+function emptyServiceAnalysis(): ServiceAnalysis {
+  return {
+    services: [],
+    summary: {
+      total: 0,
+      essentialCount: 0,
+      optionalCount: 0,
+      rarelyUsedCount: 0,
+      unusedCount: 0,
+      orphanCount: 0,
+      suggestedActionCount: 0
+    },
+    suggestedActions: []
+  };
+}
+
+function emptyTaskAnalysis(): TaskAnalysis {
+  return {
+    tasks: [],
+    summary: {
+      total: 0,
+      frequentCount: 0,
+      optionalCount: 0,
+      suspiciousCount: 0,
+      orphanCount: 0,
+      inspectOnlyCount: 0
+    },
+    suggestedActions: []
+  };
+}
+
+function emptyDriverScan(): DriverScanResult {
+  return {
+    source: "windows_update+oem_hints",
+    devices: [],
+    updateCandidates: [],
+    meaningfulDeviceCount: 0,
+    ignoredDeviceCount: 0,
+    suppressedCount: 0,
+    stackSuppressedCount: 0,
+    suppressionSuggestions: []
+  };
+}
+
+function emptyDriverPerformance(): DriverPerformanceResult {
+  return {
+    latencyRisk: "low",
+    suspectedDrivers: [],
+    activeSignals: []
+  };
 }
 
 function emptySummary(): HomeSummarySnapshot {
@@ -368,6 +497,31 @@ export class SmartCheckService {
     return built.publicRun.summary;
   }
 
+  getLightweightHomeSnapshot(): HomeSummarySnapshot {
+    if (this.summaryCache && Date.now() - this.summaryCache.at < HOME_SUMMARY_TTL_MS) {
+      return this.summaryCache.value;
+    }
+    if (this.latestCompletedRunId) {
+      const latest = this.runs.get(this.latestCompletedRunId);
+      if (latest && Date.now() - latest.publicRun.summary.generatedAt < HOME_SUMMARY_TTL_MS) {
+        this.summaryCache = { at: Date.now(), value: latest.publicRun.summary };
+        return latest.publicRun.summary;
+      }
+    }
+
+    const history = this.deps.db.listSystemSnapshotHistory({ limit: 12 });
+    const latestReport = deriveLatestReport(history, this.deps.db);
+    const snapshot: HomeSummarySnapshot = latestReport
+      ? {
+          ...emptySummary(),
+          latestReport,
+          recommendedActionSummary: "Run Smart Check to refresh cleanup, startup, and safety priorities with current machine data."
+        }
+      : emptySummary();
+    this.summaryCache = { at: Date.now(), value: snapshot };
+    return snapshot;
+  }
+
   findFindingById(findingId: string): ScanFinding | ProtectedFindingRejection | null {
     for (const run of this.runs.values()) {
       const finding = run.findings.find((item) => item.id === findingId);
@@ -413,33 +567,45 @@ export class SmartCheckService {
     const roots = this.deps.configStore.getAll().customRoots.filter(Boolean);
     const categories = mode === "balanced" ? BALANCED_CATEGORIES : FAST_CATEGORIES;
     const scanPreset = mode === "balanced" ? "standard" : "lite";
-    const scanResult = await this.deps.scanEngine.run(
-      `smartcheck:${runId}`,
-      {
-        preset: scanPreset,
-        categories,
-        roots
-      },
-      {
-        isCanceled: () => false,
-        onProgress: () => undefined
-      }
+    const scanRunId = `smartcheck:${runId}`;
+    const scanResult = await withFallback(
+      () => this.deps.scanEngine.run(
+        scanRunId,
+        {
+          preset: scanPreset,
+          categories,
+          roots
+        },
+        {
+          isCanceled: () => false,
+          onProgress: () => undefined
+        }
+      ),
+      emptyScanResult(scanRunId)
     );
 
-    const processFrame = await this.deps.processProfiler.captureSample(mode === "balanced" ? 900 : 600);
+    const processFrame = await withFallback(
+      () => this.deps.processProfiler.captureSample(mode === "balanced" ? 900 : 600),
+      emptyProcessFrame()
+    );
     const [startup, services, tasks, snapshot, driverScan, driverPerformance] = await Promise.all([
-      this.deps.startupAnalyzer.scan(processFrame.topProcesses),
-      this.deps.serviceAnalyzer.scan(),
-      this.deps.taskSchedulerAnalyzer.scan(),
-      this.deps.systemDiagnostics.captureSnapshot({
-        source: "manual",
-        sampleCount: mode === "balanced" ? 2 : 1,
-        sampleIntervalMs: mode === "balanced" ? 700 : 500
-      }),
-      this.deps.driverScanService.scan(),
-      this.deps.driverScanService.scanPerformanceSummary()
+      withFallback(() => this.deps.startupAnalyzer.scan(processFrame.topProcesses), emptyStartupAnalysis()),
+      withFallback(() => this.deps.serviceAnalyzer.scan(), emptyServiceAnalysis()),
+      withFallback(() => this.deps.taskSchedulerAnalyzer.scan(), emptyTaskAnalysis()),
+      withFallback<SystemSnapshot | undefined>(
+        () => this.deps.systemDiagnostics.captureSnapshot({
+          source: "manual",
+          sampleCount: mode === "balanced" ? 2 : 1,
+          sampleIntervalMs: mode === "balanced" ? 700 : 500
+        }),
+        undefined
+      ),
+      withFallback(() => this.deps.driverScanService.scan(), emptyDriverScan()),
+      withFallback(() => this.deps.driverScanService.scanPerformanceSummary(), emptyDriverPerformance())
     ]);
-    this.deps.db.addSystemSnapshot(snapshot);
+    if (snapshot) {
+      this.deps.db.addSystemSnapshot(snapshot);
+    }
     const history = this.deps.db.listSystemSnapshotHistory({ limit: 12 });
 
     const ranked = this.deps.issueRankingService.rankIssues({

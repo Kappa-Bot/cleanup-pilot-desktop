@@ -7,18 +7,27 @@ import { PipelineRail } from "./PipelineRail";
 import { PlanSurface } from "./PlanSurface";
 import { ScanSurface } from "./ScanSurface";
 import { SettingsDrawer } from "./SettingsDrawer";
-import { cloneSettings, defaultExecutionProgress, groupScanIssues } from "./pipelineShared";
+import { cloneSettings, defaultExecutionProgress, groupScanIssues, type VisualTheme } from "./pipelineShared";
+
+function loadStoredTheme(): VisualTheme {
+  const stored = window.localStorage.getItem("cleanup-pilot-theme");
+  return stored === "arctic" || stored === "sand" || stored === "graphite" ? stored : "graphite";
+}
 
 export function ProductShell() {
   const [surface, setSurface] = useState<TopLevelSurface>("home");
+  const [visualTheme, setVisualTheme] = useState<VisualTheme>(() => loadStoredTheme());
   const [draftSettings, setDraftSettings] = useState<AppConfig | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [homeSnapshot, setHomeSnapshot] = useState<HomeSummarySnapshot | null>(null);
   const [homeStatus, setHomeStatus] = useState("Loading system state...");
+  const [homeLoading, setHomeLoading] = useState(true);
   const [smartCheckRun, setSmartCheckRun] = useState<SmartCheckRun | null>(null);
   const [smartCheckRunId, setSmartCheckRunId] = useState("");
   const [scanStatus, setScanStatus] = useState("Run Smart Check to build the next safe plan.");
   const [scanStage, setScanStage] = useState<"scanning" | "findings" | "grouped">("scanning");
+  const [scanProgress, setScanProgress] = useState(0);
+  const [scanEta, setScanEta] = useState("ETA about 5 sec");
   const [plan, setPlan] = useState<ActionPlanSummary | null>(null);
   const [planStatus, setPlanStatus] = useState("Build a plan to review cleanup and optimization safely.");
   const [executionProgress, setExecutionProgress] = useState<DecisionExecutionProgressEvent>(defaultExecutionProgress);
@@ -30,6 +39,7 @@ export function ProductShell() {
   const pollingRef = useRef<number | null>(null);
 
   const loadHome = useCallback(async () => {
+    setHomeLoading(true);
     setHomeStatus("Loading system state...");
     try {
       const { snapshot } = await window.desktopApi.getHomeSnapshot();
@@ -44,6 +54,8 @@ export function ProductShell() {
       setDraftSettings(cloneSettings(currentSettings));
     } catch {
       setDraftSettings(null);
+    } finally {
+      setHomeLoading(false);
     }
   }, []);
 
@@ -74,6 +86,24 @@ export function ProductShell() {
     });
   }, []);
 
+  useEffect(() => {
+    window.localStorage.setItem("cleanup-pilot-theme", visualTheme);
+  }, [visualTheme]);
+
+  useEffect(() => {
+    if (busy !== "scan") {
+      return undefined;
+    }
+    const startedAt = Date.now();
+    const timer = window.setInterval(() => {
+      const elapsedSec = Math.round((Date.now() - startedAt) / 1000);
+      const remainingSec = Math.max(1, 5 - elapsedSec);
+      setScanEta(`ETA about ${remainingSec} sec`);
+      setScanProgress((current) => Math.min(92, current + 7));
+    }, 420);
+    return () => window.clearInterval(timer);
+  }, [busy]);
+
   const activeHistorySession = useMemo(
     () => historySessions.find((item) => item.id === activeHistoryId) ?? historySessions[0] ?? null,
     [activeHistoryId, historySessions]
@@ -95,6 +125,9 @@ export function ProductShell() {
     setSurface("scan");
     setPlan(null);
     setExecutionSession(null);
+    setSmartCheckRun(null);
+    setScanProgress(6);
+    setScanEta("ETA about 5 sec");
     setScanStage("scanning");
     setScanStatus("Scanning cleanup, startup, background load, and safety.");
     try {
@@ -110,6 +143,7 @@ export function ProductShell() {
           setHomeSnapshot(run.summary);
           if (run.status === "running") {
             setScanStage("findings");
+            setScanProgress((current) => Math.max(current, 42));
             setScanStatus("Collecting grouped findings.");
             return;
           }
@@ -118,6 +152,7 @@ export function ProductShell() {
             pollingRef.current = null;
           }
           setScanStage("grouped");
+          setScanProgress(100);
           setScanStatus(run.status === "completed" ? "Grouped issues are ready." : `Smart Check ${run.status}.`);
           setBusy(null);
         } catch (error) {
@@ -125,11 +160,13 @@ export function ProductShell() {
             window.clearInterval(pollingRef.current);
             pollingRef.current = null;
           }
+          setScanProgress(100);
           setScanStatus(error instanceof Error ? error.message : "Smart Check failed.");
           setBusy(null);
         }
-      }, 900);
+      }, 500);
     } catch (error) {
+      setScanProgress(100);
       setScanStatus(error instanceof Error ? error.message : "Could not start Smart Check.");
       setBusy(null);
     }
@@ -262,11 +299,16 @@ export function ProductShell() {
   }, [draftSettings]);
 
   return (
-    <div className="pipeline-app-shell">
+    <div
+      className="pipeline-app-shell"
+      data-theme={draftSettings?.highContrast ? "graphite" : visualTheme}
+      data-reduced-motion={draftSettings?.reducedMotion ? "true" : "false"}
+      data-high-contrast={draftSettings?.highContrast ? "true" : "false"}
+    >
       <header className="pipeline-topbar">
         <div className="pipeline-branding">
           <strong>Cleanup Pilot</strong>
-          <span className="muted">Quiet system maintenance</span>
+          <span className="muted">Local maintenance</span>
         </div>
         <div className="pipeline-topbar-actions">
           <button className="btn secondary" type="button" onClick={() => setSettingsOpen((open) => !open)}>
@@ -289,6 +331,7 @@ export function ProductShell() {
             <HomeSurface
               snapshot={homeSnapshot}
               homeStatus={homeStatus}
+              loading={homeLoading}
               historySessions={historySessions}
               onReload={() => void loadHome()}
               onRunSmartCheck={() => void startSmartCheck()}
@@ -301,6 +344,8 @@ export function ProductShell() {
               run={smartCheckRun}
               status={scanStatus}
               scanStage={scanStage}
+              progress={scanProgress}
+              eta={scanEta}
               busy={busy}
               buckets={scanBuckets}
               onRunSmartCheck={() => void startSmartCheck()}
@@ -313,6 +358,7 @@ export function ProductShell() {
               plan={plan}
               status={planStatus}
               canExecutePlan={canExecutePlan}
+              busy={busy === "plan"}
               onBuildPlan={() => void buildPlan()}
               onReviewContinue={openExecute}
             />
@@ -346,8 +392,10 @@ export function ProductShell() {
         <SettingsDrawer
           draftSettings={draftSettings}
           busy={busy}
+          visualTheme={visualTheme}
           onClose={() => setSettingsOpen(false)}
           onSave={() => void saveSettings()}
+          onVisualThemeChange={setVisualTheme}
           setDraftSettings={setDraftSettings}
         />
       ) : null}

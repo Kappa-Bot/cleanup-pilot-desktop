@@ -1,9 +1,19 @@
 import type { ReactNode } from "react";
+import { ProgressMeter } from "./ProgressMeter";
+
+interface DecisionProgress {
+  value?: number;
+  label: string;
+  eta?: string;
+  tone?: "active" | "complete" | "warning" | "danger";
+  indeterminate?: boolean;
+}
 
 interface DecisionPanelProps {
   kicker: string;
   title: string;
   summary: string;
+  progress?: DecisionProgress;
   primaryActionLabel?: string;
   secondaryActionLabel?: string;
   onPrimaryAction?: () => void;
@@ -15,6 +25,7 @@ export function DecisionPanel({
   kicker,
   title,
   summary,
+  progress,
   primaryActionLabel,
   secondaryActionLabel,
   onPrimaryAction,
@@ -27,6 +38,7 @@ export function DecisionPanel({
         <small className="section-kicker">{kicker}</small>
         <h2>{title}</h2>
         <p className="muted">{summary}</p>
+        {progress ? <ProgressMeter {...progress} /> : null}
         <div className="row wrap">
           {primaryActionLabel ? (
             <button className="btn" type="button" onClick={onPrimaryAction}>

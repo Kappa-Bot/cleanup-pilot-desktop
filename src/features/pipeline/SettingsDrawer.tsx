@@ -1,25 +1,55 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { AppConfig } from "../../types";
+import type { VisualTheme } from "./pipelineShared";
+import { visualThemeItems } from "./pipelineShared";
 
 interface SettingsDrawerProps {
   draftSettings: AppConfig;
   busy: string | null;
+  visualTheme: VisualTheme;
   onClose: () => void;
   onSave: () => void;
+  onVisualThemeChange: (theme: VisualTheme) => void;
   setDraftSettings: Dispatch<SetStateAction<AppConfig | null>>;
 }
 
-export function SettingsDrawer({ draftSettings, busy, onClose, onSave, setDraftSettings }: SettingsDrawerProps) {
+export function SettingsDrawer({
+  draftSettings,
+  busy,
+  visualTheme,
+  onClose,
+  onSave,
+  onVisualThemeChange,
+  setDraftSettings
+}: SettingsDrawerProps) {
   return (
     <aside className="settings-drawer" aria-label="Settings drawer">
       <div className="settings-drawer-header">
         <div>
           <small className="section-kicker">Settings</small>
-          <h3>Keep advanced controls minimal</h3>
+          <h3>Configuration</h3>
         </div>
         <button className="btn secondary" type="button" onClick={onClose}>
           Close
         </button>
+      </div>
+
+      <div className="settings-section">
+        <small className="section-kicker">Appearance</small>
+        <div className="theme-choice-grid" aria-label="Visual theme">
+          {visualThemeItems.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`theme-choice ${visualTheme === item.id ? "is-active" : ""}`}
+              onClick={() => onVisualThemeChange(item.id)}
+            >
+              <span className={`theme-swatch theme-swatch-${item.id}`} aria-hidden="true" />
+              <strong>{item.label}</strong>
+              <small>{item.summary}</small>
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="settings-section">

@@ -32,12 +32,18 @@ export function ProductShell() {
   const loadHome = useCallback(async () => {
     setHomeStatus("Loading system state...");
     try {
-      const [{ snapshot }, currentSettings] = await Promise.all([window.desktopApi.getHomeSnapshot(), window.desktopApi.getSettings()]);
+      const { snapshot } = await window.desktopApi.getHomeSnapshot();
       setHomeSnapshot(snapshot);
-      setDraftSettings(cloneSettings(currentSettings));
       setHomeStatus("System state ready.");
     } catch (error) {
       setHomeStatus(error instanceof Error ? error.message : "Failed to load system state.");
+    }
+
+    try {
+      const currentSettings = await window.desktopApi.getSettings();
+      setDraftSettings(cloneSettings(currentSettings));
+    } catch {
+      setDraftSettings(null);
     }
   }, []);
 
@@ -74,6 +80,15 @@ export function ProductShell() {
   );
 
   const scanBuckets = useMemo(() => groupScanIssues(smartCheckRun), [smartCheckRun]);
+  const canBuildPlan = smartCheckRun?.status === "completed";
+  const canExecutePlan = Boolean((plan?.cleanupPreview?.actionCount ?? 0) > 0 || (plan?.optimizationPreview?.actions.length ?? 0) > 0);
+  const disabledSurfaces = useMemo<TopLevelSurface[]>(
+    () => [
+      ...(canBuildPlan ? [] : ["plan" as TopLevelSurface]),
+      ...(canExecutePlan ? [] : ["execute" as TopLevelSurface])
+    ],
+    [canBuildPlan, canExecutePlan]
+  );
 
   const startSmartCheck = useCallback(async () => {
     setBusy("scan");
@@ -140,6 +155,11 @@ export function ProductShell() {
   }, [smartCheckRunId]);
 
   const openExecute = useCallback(() => {
+    if (!canExecutePlan) {
+      setPlanStatus("Plan has no executable actions.");
+      setSurface("plan");
+      return;
+    }
     setSurface("execute");
     setExecutionProgress({
       ...defaultExecutionProgress,
@@ -147,10 +167,18 @@ export function ProductShell() {
       summary: "Plan locked. Confirm to apply it.",
       timestamp: Date.now()
     });
-  }, []);
+  }, [canExecutePlan]);
 
   const applyPlan = useCallback(async () => {
-    if (!smartCheckRunId) {
+    if (!smartCheckRunId || !canExecutePlan) {
+      setExecutionProgress({
+        executionId: "blocked",
+        stage: "failed",
+        percent: 100,
+        title: "Plan required",
+        summary: "Review a plan with executable actions before applying changes.",
+        timestamp: Date.now()
+      });
       return;
     }
     setBusy("execute");
@@ -186,7 +214,7 @@ export function ProductShell() {
     } finally {
       setBusy(null);
     }
-  }, [loadHistory, smartCheckRunId]);
+  }, [canExecutePlan, loadHistory, smartCheckRunId]);
 
   const openSessionReport = useCallback(async () => {
     await loadHistory();
@@ -248,7 +276,13 @@ export function ProductShell() {
       </header>
 
       <div className="pipeline-layout">
-        <PipelineRail surface={surface} homeStatus={homeStatus} historyStatus={historyStatus} onNavigate={setSurface} />
+        <PipelineRail
+          surface={surface}
+          homeStatus={homeStatus}
+          historyStatus={historyStatus}
+          disabledSurfaces={disabledSurfaces}
+          onNavigate={setSurface}
+        />
 
         <main className="pipeline-content">
           {surface === "home" ? (
@@ -275,7 +309,13 @@ export function ProductShell() {
           ) : null}
 
           {surface === "plan" ? (
-            <PlanSurface plan={plan} status={planStatus} onBuildPlan={() => void buildPlan()} onReviewContinue={openExecute} />
+            <PlanSurface
+              plan={plan}
+              status={planStatus}
+              canExecutePlan={canExecutePlan}
+              onBuildPlan={() => void buildPlan()}
+              onReviewContinue={openExecute}
+            />
           ) : null}
 
           {surface === "execute" ? (

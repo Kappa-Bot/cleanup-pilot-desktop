@@ -372,6 +372,15 @@ describe("App pipeline rebuild", () => {
     expect(screen.queryByText("AI Advisor")).toBeNull();
   });
 
+  it("keeps Home usable when settings fail to load", async () => {
+    desktopApiMock.getSettings.mockRejectedValueOnce(new Error("settings unavailable"));
+
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByText("3 issues need attention. Build a plan before changing anything.")).toBeTruthy());
+    expect(screen.getByRole("button", { name: "Run Smart Check" })).toBeTruthy();
+  });
+
   it("runs Smart Check from Home and builds a plan from Scan", async () => {
     render(<App />);
 

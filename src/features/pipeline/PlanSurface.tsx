@@ -9,11 +9,12 @@ import { formatBytes } from "./pipelineShared";
 interface PlanSurfaceProps {
   plan: ActionPlanSummary | null;
   status: string;
+  canExecutePlan: boolean;
   onBuildPlan: () => void;
   onReviewContinue: () => void;
 }
 
-export function PlanSurface({ plan, status, onBuildPlan, onReviewContinue }: PlanSurfaceProps) {
+export function PlanSurface({ plan, status, canExecutePlan, onBuildPlan, onReviewContinue }: PlanSurfaceProps) {
   if (!plan) {
     return <EmptyState kicker="Plan" title="No plan yet" summary={status} actionLabel="Build plan" onAction={onBuildPlan} />;
   }
@@ -26,9 +27,9 @@ export function PlanSurface({ plan, status, onBuildPlan, onReviewContinue }: Pla
       <DecisionPanel
         kicker="Plan"
         title={plan.assistant.title}
-        summary={plan.assistant.summary}
-        primaryActionLabel="Review and continue"
-        onPrimaryAction={onReviewContinue}
+        summary={canExecutePlan ? plan.assistant.summary : "No cleanup or reversible optimization action is ready to execute."}
+        primaryActionLabel={canExecutePlan ? "Review and continue" : undefined}
+        onPrimaryAction={canExecutePlan ? onReviewContinue : undefined}
         aside={
           <MetricStrip
             items={[

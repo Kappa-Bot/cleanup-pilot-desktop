@@ -1,5 +1,6 @@
 import type { ActionPlanSummary, DecisionExecutionProgressEvent, ExecutionSession } from "../../types";
 import { DecisionPanel } from "../shared/DecisionPanel";
+import { EmptyState } from "../shared/EmptyState";
 import { MetricStrip } from "../shared/MetricStrip";
 import { executionStageLabel, executionStageOrder } from "./pipelineShared";
 
@@ -19,6 +20,15 @@ export function ExecuteSurface({
   onOpenSessionReport
 }: ExecuteSurfaceProps) {
   const completed = executionProgress.stage === "completed" && executionSession;
+  if (!plan && !completed) {
+    return (
+      <EmptyState
+        kicker="Execute"
+        title="Plan required"
+        summary="Review a Smart Check plan before applying changes."
+      />
+    );
+  }
 
   return (
     <div className="pipeline-surface-stack">

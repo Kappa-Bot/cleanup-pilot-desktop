@@ -5,25 +5,35 @@ interface PipelineRailProps {
   surface: TopLevelSurface;
   homeStatus: string;
   historyStatus: string;
+  disabledSurfaces?: TopLevelSurface[];
   onNavigate: (surface: TopLevelSurface) => void;
 }
 
-export function PipelineRail({ surface, homeStatus, historyStatus, onNavigate }: PipelineRailProps) {
+export function PipelineRail({ surface, homeStatus, historyStatus, disabledSurfaces = [], onNavigate }: PipelineRailProps) {
   return (
     <aside className="pipeline-rail">
       <nav className="pipeline-nav" aria-label="Primary navigation">
-        {surfaceItems.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            aria-label={item.label}
-            className={`pipeline-nav-button ${item.id === surface ? "is-active" : ""}`}
-            onClick={() => onNavigate(item.id)}
-          >
-            <strong>{item.label}</strong>
-            <small>{item.hint}</small>
-          </button>
-        ))}
+        {surfaceItems.map((item) => {
+          const disabled = item.id !== surface && disabledSurfaces.includes(item.id);
+          return (
+            <button
+              key={item.id}
+              type="button"
+              aria-label={item.label}
+              aria-disabled={disabled}
+              disabled={disabled}
+              className={`pipeline-nav-button ${item.id === surface ? "is-active" : ""}`}
+              onClick={() => {
+                if (!disabled) {
+                  onNavigate(item.id);
+                }
+              }}
+            >
+              <strong>{item.label}</strong>
+              <small>{item.hint}</small>
+            </button>
+          );
+        })}
       </nav>
       <div className="pipeline-rail-note">
         <small className="section-kicker">Right now</small>

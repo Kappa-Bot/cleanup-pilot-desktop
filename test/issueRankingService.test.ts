@@ -1,5 +1,5 @@
 import { IssueRankingService } from "../electron/issueRankingService";
-import { OptimizationActionSuggestion, SystemSnapshot, SystemSnapshotHistoryPoint } from "../electron/types";
+import { OptimizationActionSuggestion, ScanFinding, SystemSnapshot, SystemSnapshotHistoryPoint } from "../electron/types";
 
 function buildSnapshot(overrides: Partial<SystemSnapshot> = {}): SystemSnapshot {
   return {
@@ -148,5 +148,40 @@ describe("IssueRankingService", () => {
     expect(trend.label).toMatch(/health slipped/i);
     expect(result.summary.trustSummary).toMatch(/preview-first/i);
     expect(result.summary.recommendedActionSummary).toContain(result.summary.recommendedIssue?.title ?? "");
+  });
+
+  it("keeps report-only deep storage out of executable cleanup issues", () => {
+    const service = new IssueRankingService();
+    const deepFinding: ScanFinding = {
+      id: "deep-vhdx",
+      path: "C:\\Users\\me\\AppData\\Local\\Docker\\wsl\\data\\ext4.vhdx",
+      category: "wsl_leftovers",
+      sizeBytes: 90 * 1024 ** 3,
+      risk: "high",
+      reason: "Docker VHDX is report-only.",
+      sourceRuleId: "deep-storage:docker-wsl-vhdx",
+      selectedByDefault: false,
+      modifiedAt: 0,
+      kind: "file",
+      origin: "deep_storage",
+      storageSafety: "never",
+      storageAction: "reportOnly",
+      storageSource: "developer_cache",
+      reviewOnly: true,
+      executionBlocked: true,
+      evidence: ["Report-only VHDX"]
+    };
+
+    const result = service.rankIssues({
+      findings: [deepFinding],
+      rejected: [],
+      startupActions: []
+    });
+
+    const largeIssue = result.cleanerIssues.find((issue) => issue.card.id === "deep-storage:large-storage");
+    expect(largeIssue?.card.title).toBe("Review hidden storage");
+    expect(largeIssue?.cleanupFindingIds).toEqual([]);
+    expect(result.cleanerIssues.some((issue) => issue.card.id === "cleanup:wsl_leftovers")).toBe(false);
+    expect(result.summary.recommendedIssue?.id).toBe("deep-storage:large-storage");
   });
 });

@@ -211,7 +211,7 @@ export class CleanupEngine {
       actionCount += findingTaskCount(finding);
       totalBytes += finding.sizeBytes;
 
-      const guard = this.getCleanupGuard(finding.path, protectionPreferences);
+      const guard = this.getCleanupGuard(finding, protectionPreferences);
       if (!guard.allowed) {
         blockedCount += 1;
       }
@@ -312,7 +312,7 @@ export class CleanupEngine {
         runningPath: finding.path
       });
 
-      const guard = this.getCleanupGuard(finding.path, protectionPreferences);
+      const guard = this.getCleanupGuard(finding, protectionPreferences);
       if (!guard.allowed) {
         const blockedTaskCount = findingTaskCount(finding);
         failedCount += blockedTaskCount;
@@ -824,7 +824,7 @@ export class CleanupEngine {
 
     for (const finding of findings) {
       if (finding.kind === "directory") {
-        const safeGuard = this.getCleanupGuard(finding.path, protectionPreferences);
+        const safeGuard = this.getCleanupGuard(finding, protectionPreferences);
         if (!safeGuard.allowed) {
           nonDirectoryFindings.push(finding);
           continue;
@@ -873,7 +873,7 @@ export class CleanupEngine {
     const directoryPlans: DirectoryPlan[] = [...directDirectoryPlans];
 
     for (const [directoryPath, allItems] of candidates) {
-      const safeGuard = this.getCleanupGuard(directoryPath, protectionPreferences);
+      const safeGuard = this.getCleanupGuard({ path: directoryPath } as ScanFinding, protectionPreferences);
       if (!safeGuard.allowed) {
         continue;
       }
@@ -915,9 +915,22 @@ export class CleanupEngine {
   }
 
   private getCleanupGuard(
-    targetPath: string,
+    finding: ScanFinding,
     protectionPreferences: ProtectionPreferences
   ): { allowed: boolean; reason?: string } {
+    if (finding.executionBlocked || finding.storageSafety === "advanced" || finding.storageSafety === "never") {
+      return {
+        allowed: false,
+        reason: "This storage finding is report-only or requires a native/manual cleanup flow."
+      };
+    }
+    if (finding.reviewOnly || (finding.storageAction && finding.storageAction !== "quarantine")) {
+      return {
+        allowed: false,
+        reason: "This storage finding requires manual review and is not executable from one-click cleanup."
+      };
+    }
+    const targetPath = finding.path;
     const pathMatch = matchNeverCleanupPath(targetPath, protectionPreferences.neverCleanupPaths);
     if (pathMatch) {
       return {

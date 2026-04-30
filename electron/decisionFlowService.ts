@@ -53,6 +53,9 @@ function defaultIssueIds(run: SmartCheckRun, selectedIssueIds: string[]): string
 }
 
 function bucketIdForIssue(issue: ProductIssueCard): DecisionIssueBucketId {
+  if (issue.id.startsWith("deep-storage:")) {
+    return "large_storage";
+  }
   if (issue.severity === "blocked" || issue.domain === "safety") {
     return "blocked_for_safety";
   }
@@ -74,6 +77,8 @@ function bucketLabel(id: DecisionIssueBucketId): string {
       return "Safe to clean";
     case "startup_impact":
       return "Startup impact";
+    case "large_storage":
+      return "Large storage";
     case "background_load":
       return "Background load";
     case "blocked_for_safety":
@@ -89,6 +94,8 @@ function bucketSummary(id: DecisionIssueBucketId, count: number): string {
       return `${count} cleanup ${count === 1 ? "action is" : "actions are"} ready for quarantine-first cleanup.`;
     case "startup_impact":
       return `${count} startup ${count === 1 ? "change is" : "changes are"} worth previewing.`;
+    case "large_storage":
+      return `${count} large storage ${count === 1 ? "area needs" : "areas need"} review before cleanup.`;
     case "background_load":
       return `${count} background ${count === 1 ? "issue needs" : "issues need"} attention.`;
     case "blocked_for_safety":
@@ -102,6 +109,7 @@ function buildBuckets(issues: ProductIssueCard[]): DecisionIssueBucket[] {
   const order: DecisionIssueBucketId[] = [
     "safe_to_clean",
     "needs_review",
+    "large_storage",
     "startup_impact",
     "background_load",
     "blocked_for_safety"

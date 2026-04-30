@@ -541,4 +541,48 @@ describe("CleanupEngine", () => {
     expect(result.failedCount).toBe(0);
     expect(result.freedBytes).toBe(30);
   });
+
+  it("refuses advanced and report-only deep storage findings before quarantine", async () => {
+    const engine = new CleanupEngine();
+    const findings: ScanFinding[] = [
+      {
+        id: "deep-report-only",
+        path: "C:\\Users\\u\\AppData\\Local\\Docker\\wsl\\data\\ext4.vhdx",
+        category: "wsl_leftovers",
+        sizeBytes: 10,
+        risk: "high",
+        reason: "Report-only VHDX",
+        sourceRuleId: "deep-storage:docker-wsl-vhdx",
+        selectedByDefault: false,
+        modifiedAt: Date.now(),
+        origin: "deep_storage",
+        storageSafety: "never",
+        storageAction: "reportOnly",
+        executionBlocked: true,
+        reviewOnly: true
+      }
+    ];
+    const manager = {
+      quarantineDirectory: jest.fn(async () => []),
+      quarantineFilesBatch: jest.fn(async () => ({ moved: [], failed: [] })),
+      quarantineMixedBatchElevated: jest.fn(async () => ({
+        movedFiles: [],
+        failedFiles: [],
+        movedDirectories: [],
+        failedDirectories: []
+      }))
+    } as unknown as QuarantineManager;
+
+    const preview = await engine.preview(findings, ["deep-report-only"]);
+    const result = await engine.execute(findings, ["deep-report-only"], manager, {
+      runId: "run-deep",
+      executionId: "exec-deep"
+    });
+
+    expect(preview.riskFlags.blockedCount).toBe(1);
+    expect(result.movedCount).toBe(0);
+    expect(result.failedCount).toBe(1);
+    expect(manager.quarantineFilesBatch).not.toHaveBeenCalled();
+    expect(manager.quarantineMixedBatchElevated).not.toHaveBeenCalled();
+  });
 });

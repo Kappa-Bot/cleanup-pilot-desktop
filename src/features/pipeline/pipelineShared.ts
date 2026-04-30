@@ -28,7 +28,7 @@ export const visualThemeItems: Array<{ id: VisualTheme; label: string; summary: 
 ];
 
 export const scanStageItems: Array<{ id: "scanning" | "findings" | "grouped"; label: string; hint: string }> = [
-  { id: "scanning", label: "Scanning", hint: "Checking cleanup and startup" },
+  { id: "scanning", label: "Scanning", hint: "Checking cleanup, deep storage, and startup" },
   { id: "findings", label: "Findings", hint: "Collecting safe groups" },
   { id: "grouped", label: "Grouped issues", hint: "Ready to build a plan" }
 ];
@@ -108,7 +108,9 @@ export function groupScanIssues(run: SmartCheckRun | null): DecisionIssueBucket[
   const grouped = new Map<string, ProductIssueCard[]>();
   for (const issue of allIssues) {
     const bucketId =
-      issue.severity === "blocked" || issue.domain === "safety"
+      issue.id.startsWith("deep-storage:")
+        ? "large_storage"
+        : issue.severity === "blocked" || issue.domain === "safety"
         ? "blocked_for_safety"
         : issue.domain === "startup"
           ? "startup_impact"
@@ -125,6 +127,7 @@ export function groupScanIssues(run: SmartCheckRun | null): DecisionIssueBucket[
   return [
     ["safe_to_clean", "Safe to clean", "Cleanup wins that can move to quarantine safely."],
     ["needs_review", "Needs review", "Items that deserve a quick human check before planning."],
+    ["large_storage", "Large storage", "Large folders and files worth reviewing before cleanup."],
     ["startup_impact", "Startup impact", "Boot-time drag that is worth trimming."],
     ["background_load", "Background load", "Reversible background pressure worth reducing."],
     ["blocked_for_safety", "Blocked for safety", "Protected paths or binaries held back automatically."]

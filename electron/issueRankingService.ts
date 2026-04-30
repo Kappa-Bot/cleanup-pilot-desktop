@@ -133,6 +133,7 @@ export interface RankIssuesInput {
 export class IssueRankingService {
   rankIssues(input: RankIssuesInput): RankedIssueSet {
     const cleanerIssues = [
+      ...this.buildLargeStorageIssues(input.findings),
       ...this.buildCleanupIssues(input.findings),
       ...this.buildSafetyIssues(input.rejected)
     ];
@@ -280,7 +281,7 @@ export class IssueRankingService {
 
   private buildCleanupIssues(findings: ScanFinding[]): RankedIssue[] {
     const buckets = new Map<CleanupCategory, ScanFinding[]>();
-    for (const finding of findings) {
+    for (const finding of findings.filter((item) => this.isExecutableCleanupFinding(item))) {
       const list = buckets.get(finding.category) ?? [];
       list.push(finding);
       buckets.set(finding.category, list);
@@ -326,6 +327,60 @@ export class IssueRankingService {
         } satisfies RankedIssue;
       })
       .sort((left, right) => (right.card.bytesRecoverable ?? 0) - (left.card.bytesRecoverable ?? 0));
+  }
+
+  private isExecutableCleanupFinding(finding: ScanFinding): boolean {
+    if (finding.origin !== "deep_storage") {
+      return true;
+    }
+    return Boolean(
+      finding.selectedByDefault &&
+      finding.storageAction === "quarantine" &&
+      (finding.storageSafety === "safe" || finding.storageSafety === "rebuildable") &&
+      !finding.reviewOnly &&
+      !finding.executionBlocked
+    );
+  }
+
+  private buildLargeStorageIssues(findings: ScanFinding[]): RankedIssue[] {
+    const reviewFindings = findings.filter((item) => item.origin === "deep_storage" && !this.isExecutableCleanupFinding(item));
+    if (!reviewFindings.length) {
+      return [];
+    }
+    const totalBytes = reviewFindings.reduce((sum, item) => sum + item.sizeBytes, 0);
+    const advancedCount = reviewFindings.filter((item) => item.storageSafety === "advanced" || item.storageSafety === "never").length;
+    const sourceCounts = new Map<string, number>();
+    for (const finding of reviewFindings) {
+      const source = (finding.storageSource ?? "large_file").replace(/_/g, " ");
+      sourceCounts.set(source, (sourceCounts.get(source) ?? 0) + 1);
+    }
+    const evidence = [...sourceCounts.entries()]
+      .sort((left, right) => right[1] - left[1])
+      .slice(0, 3)
+      .map(([source, count]) => `${count} ${source} ${count === 1 ? "area" : "areas"}`);
+    return [
+      {
+        card: {
+          id: "deep-storage:large-storage",
+          domain: "cleanup",
+          title: "Review hidden storage",
+          summary: `${bytesToGb(totalBytes)} found in large or sensitive storage areas. Review before any cleanup.`,
+          severity: totalBytes >= 20 * 1024 ** 3 ? "high_impact" : "review",
+          bytesRecoverable: totalBytes,
+          confidence: roundConfidence(advancedCount ? 0.74 : 0.82),
+          reversible: false,
+          primaryActionLabel: "Review storage",
+          secondaryActionLabel: "Keep risky items untouched",
+          evidence: [
+            ...evidence,
+            advancedCount ? `${advancedCount} advanced/report-only ${advancedCount === 1 ? "item" : "items"}` : "Manual review required",
+            "No raw file list sent to AI"
+          ].slice(0, 4)
+        },
+        cleanupFindingIds: [],
+        optimizationActions: []
+      }
+    ];
   }
 
   private buildSafetyIssues(rejected: ProtectedFindingRejection[]): RankedIssue[] {

@@ -29,6 +29,50 @@ export interface ProtectionPreferences {
   neverCleanupApps: string[];
 }
 
+export type StorageCleanupSafety = "safe" | "rebuildable" | "review" | "advanced" | "never";
+export type StorageCleanupAction = "quarantine" | "nativeTool" | "manualReview" | "reportOnly";
+export type DeepStorageSource =
+  | "windows"
+  | "appdata"
+  | "programdata"
+  | "game_launcher"
+  | "developer_cache"
+  | "orphaned_app_data"
+  | "large_file";
+
+export interface DeepStorageFinding {
+  id: string;
+  path: string;
+  kind: "file" | "directory";
+  category: CleanupCategory;
+  source: DeepStorageSource;
+  sizeBytes: number;
+  entryCount?: number;
+  modifiedAt: number;
+  safety: StorageCleanupSafety;
+  action: StorageCleanupAction;
+  selectedByDefault: boolean;
+  ruleId: string;
+  explanation: string;
+  evidence: string[];
+}
+
+export interface DeepStorageCategorySummary {
+  source: DeepStorageSource;
+  safety: StorageCleanupSafety;
+  bytes: number;
+  count: number;
+}
+
+export interface StorageRuleMatch {
+  ruleId: string;
+  category: CleanupCategory;
+  safety: StorageCleanupSafety;
+  action: StorageCleanupAction;
+  explanation: string;
+  evidence: string[];
+}
+
 export type DriverSuppressionSuggestionId =
   | "system-infrastructure"
   | "virtualization-vmware"
@@ -80,6 +124,7 @@ export interface ScanStartRequest {
   preset: CleanupPreset;
   categories: CleanupCategory[];
   roots: string[];
+  deepStorage?: boolean;
 }
 
 export interface ScanFinding {
@@ -94,6 +139,13 @@ export interface ScanFinding {
   modifiedAt: number;
   kind?: "file" | "directory";
   entryCount?: number;
+  origin?: "rules" | "deep_storage";
+  storageSafety?: StorageCleanupSafety;
+  storageAction?: StorageCleanupAction;
+  storageSource?: DeepStorageSource;
+  reviewOnly?: boolean;
+  executionBlocked?: boolean;
+  evidence?: string[];
 }
 
 export interface ProtectedFindingRejection {
@@ -116,6 +168,15 @@ export interface ScanSummary {
   protectedRejectedCount: number;
   protectedRejectedTruncated?: boolean;
   categories: Record<CleanupCategory, { count: number; bytes: number }>;
+  deepStorage?: {
+    bytesFound: number;
+    selectedBytes: number;
+    reviewBytes: number;
+    advancedBytes: number;
+    skippedPaths: number;
+    deniedPaths: number;
+    summaries: DeepStorageCategorySummary[];
+  };
 }
 
 export interface ScanProgressEvent {
@@ -818,6 +879,7 @@ export type IssueSeverity = "safe_win" | "review" | "high_impact" | "blocked";
 export type DecisionIssueBucketId =
   | "safe_to_clean"
   | "needs_review"
+  | "large_storage"
   | "startup_impact"
   | "background_load"
   | "blocked_for_safety";

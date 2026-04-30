@@ -30,6 +30,7 @@ export function PlanSurface({ plan, status, canExecutePlan, busy, onBuildPlan, o
   }
 
   const cleanupBuckets = plan.issueBuckets.filter((bucket) => bucket.id === "safe_to_clean" || bucket.id === "needs_review");
+  const largeStorageBucket = plan.issueBuckets.find((bucket) => bucket.id === "large_storage");
   const blockedBucket = plan.issueBuckets.find((bucket) => bucket.id === "blocked_for_safety");
 
   return (
@@ -67,6 +68,23 @@ export function PlanSurface({ plan, status, canExecutePlan, busy, onBuildPlan, o
               ))}
             </div>
           </article>
+
+          {largeStorageBucket ? (
+            <article className="pipeline-card">
+              <header className="pipeline-card-header">
+                <div>
+                  <small className="section-kicker">Large storage</small>
+                  <h3>What needs review</h3>
+                </div>
+              </header>
+              <p className="muted">Large files, app leftovers, native-tool cleanup, and report-only storage stay out of one-click cleanup.</p>
+              <div className="issue-grid issue-grid--compact">
+                {largeStorageBucket.issues.slice(0, 3).map((issue) => (
+                  <IssueCard key={issue.id} issue={issue} />
+                ))}
+              </div>
+            </article>
+          ) : null}
 
           <article className="pipeline-card">
             <header className="pipeline-card-header">

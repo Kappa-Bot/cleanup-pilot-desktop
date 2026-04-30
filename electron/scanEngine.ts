@@ -24,6 +24,8 @@ import {
   matchCleanupPath,
   shouldSelectByDefault
 } from "./rulePack";
+import { scanDeepStorage } from "./deepStorageScanner";
+import { isUnderOrSamePath, normalizeStoragePath } from "./storageScannerUtils";
 
 export interface ScanExecutionResult {
   findings: ScanFinding[];
@@ -582,6 +584,13 @@ export class ScanEngine {
     let progressPercentFloor = 0;
 
     const estimatedDirectoryWorkUnits = (): number => estimatedFilesPerDirectory + 1;
+    const appendFinding = (finding: ScanFinding): void => {
+      findings.push(finding);
+      summary.findingsCount += finding.entryCount ?? 1;
+      summary.totalCandidateBytes += finding.sizeBytes;
+      summary.categories[finding.category].count += finding.entryCount ?? 1;
+      summary.categories[finding.category].bytes += finding.sizeBytes;
+    };
 
     const refreshRateEstimate = (): void => {
       const now = Date.now();
@@ -911,11 +920,7 @@ export class ScanEngine {
             kind: "directory",
             entryCount: directoryEntryCount
           };
-          findings.push(finding);
-          summary.findingsCount += finding.entryCount ?? 1;
-          summary.totalCandidateBytes += finding.sizeBytes;
-          summary.categories[finding.category].count += finding.entryCount ?? 1;
-          summary.categories[finding.category].bytes += finding.sizeBytes;
+          appendFinding(finding);
         }
         return;
       }
@@ -1062,11 +1067,7 @@ export class ScanEngine {
             }
             continue;
           }
-          findings.push(entry.item);
-          summary.findingsCount += entry.item.entryCount ?? 1;
-          summary.totalCandidateBytes += entry.item.sizeBytes;
-          summary.categories[entry.item.category].count += entry.item.entryCount ?? 1;
-          summary.categories[entry.item.category].bytes += entry.item.sizeBytes;
+          appendFinding(entry.item);
         }
         processedCandidates += chunkRecords.length;
         const directoryProgressRatio = processedCandidates / Math.max(1, candidatePaths.length);
@@ -1144,8 +1145,6 @@ export class ScanEngine {
       return { findings, rejected, summary };
     }
 
-    summary.status = "completed";
-    summary.finishedAt = Date.now();
     options.onProgress({
       runId,
       stage: "analyzing",
@@ -1161,6 +1160,59 @@ export class ScanEngine {
           ? Number((summary.processedItems / Math.max(1, processedDirectories)).toFixed(1))
           : Number((surveyStats.sampledFiles / Math.max(1, surveyStats.sampledDirectories)).toFixed(1))
     });
+
+    if ((request.deepStorage || request.preset === "deep" || request.preset === "extreme") && !options.isCanceled()) {
+      const existingPaths = new Set(findings.map((item) => normalizeStoragePath(item.path)));
+      const hasExistingCoverage = (targetPath: string): boolean => {
+        const target = normalizeStoragePath(targetPath);
+        for (const existing of existingPaths) {
+          if (isUnderOrSamePath(target, existing) || isUnderOrSamePath(existing, target)) {
+            return true;
+          }
+        }
+        return false;
+      };
+      const deepResult = await scanDeepStorage({
+        customRoots: request.roots,
+        isCanceled: options.isCanceled,
+        maxDepth: request.preset === "extreme" ? 7 : request.preset === "deep" ? 6 : 4,
+        topN: request.preset === "extreme" ? 140 : request.preset === "deep" ? 110 : 60,
+        includeOrphans: request.preset === "deep" || request.preset === "extreme"
+      });
+
+      summary.deepStorage = deepResult.summary;
+      for (const finding of deepResult.scanFindings) {
+        if (hasExistingCoverage(finding.path)) {
+          continue;
+        }
+        appendFinding(finding);
+        existingPaths.add(normalizeStoragePath(finding.path));
+      }
+    }
+
+    if (options.isCanceled()) {
+      summary.status = "canceled";
+      summary.finishedAt = Date.now();
+      options.onProgress({
+        runId,
+        stage: "canceled",
+        processedItems: summary.processedItems,
+        findingsCount: summary.findingsCount,
+        percent: 100,
+        etaSec: 0,
+        processedDirectories,
+        estimatedTotalItems: Math.max(summary.processedItems, Math.round(plannedFileItems)),
+        estimatedRemainingItems: 0,
+        scanDensity:
+          processedDirectories > 0
+            ? Number((summary.processedItems / Math.max(1, processedDirectories)).toFixed(1))
+            : Number((surveyStats.sampledFiles / Math.max(1, surveyStats.sampledDirectories)).toFixed(1))
+      });
+      return { findings, rejected, summary };
+    }
+
+    summary.status = "completed";
+    summary.finishedAt = Date.now();
     options.onProgress({
       runId,
       stage: "completed",

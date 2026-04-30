@@ -60,6 +60,18 @@ export async function installDesktopApiStub(page: Page): Promise<void> {
         primaryActionLabel: "Include in plan",
         evidence: ["4.2 GB cache"]
       },
+      storage: {
+        id: "deep-storage:large-storage",
+        domain: "cleanup",
+        title: "Review hidden storage",
+        summary: "42 GB found in large or sensitive storage areas. Review before any cleanup.",
+        severity: "review",
+        bytesRecoverable: 42 * 1024 ** 3,
+        confidence: 0.82,
+        reversible: false,
+        primaryActionLabel: "Review storage",
+        evidence: ["1 developer cache area", "Report-only items stay untouched"]
+      },
       startup: {
         id: "startup:trim",
         domain: "startup",
@@ -148,7 +160,7 @@ export async function installDesktopApiStub(page: Page): Promise<void> {
       },
       latestReport,
       recommendedIssue: sharedIssues.startup,
-      topIssues: [sharedIssues.cleanup, sharedIssues.startup, sharedIssues.blocked]
+      topIssues: [sharedIssues.storage, sharedIssues.cleanup, sharedIssues.startup, sharedIssues.blocked]
     };
 
     const smartCheckRun: SmartCheckRun = {
@@ -162,7 +174,7 @@ export async function installDesktopApiStub(page: Page): Promise<void> {
         findingsCount: 18,
         selectedCount: 12,
         selectedBytes: 8 * 1024 ** 3,
-        groupedIssues: [sharedIssues.cleanup, sharedIssues.blocked]
+        groupedIssues: [sharedIssues.cleanup, sharedIssues.storage, sharedIssues.blocked]
       },
       optimize: {
         startupIssues: 3,
@@ -175,8 +187,8 @@ export async function installDesktopApiStub(page: Page): Promise<void> {
     const plan: ActionPlanSummary = {
       runId: "smart-1",
       generatedAt: now + 5000,
-      selectedIssueIds: [sharedIssues.cleanup.id, sharedIssues.startup.id, sharedIssues.blocked.id],
-      selectedIssues: [sharedIssues.cleanup, sharedIssues.startup, sharedIssues.blocked],
+      selectedIssueIds: [sharedIssues.cleanup.id, sharedIssues.storage.id, sharedIssues.startup.id, sharedIssues.blocked.id],
+      selectedIssues: [sharedIssues.cleanup, sharedIssues.storage, sharedIssues.startup, sharedIssues.blocked],
       issueBuckets: [
         {
           id: "safe_to_clean",
@@ -184,6 +196,13 @@ export async function installDesktopApiStub(page: Page): Promise<void> {
           summary: "1 grouped cleanup action can move to quarantine.",
           count: 1,
           issues: [sharedIssues.cleanup]
+        },
+        {
+          id: "large_storage",
+          label: "Large storage",
+          summary: "1 large storage area needs review before cleanup.",
+          count: 1,
+          issues: [sharedIssues.storage]
         },
         {
           id: "startup_impact",
@@ -269,7 +288,7 @@ export async function installDesktopApiStub(page: Page): Promise<void> {
       backgroundReductionPct: 14,
       quarantineItemIds: ["q-1", "q-2"],
       optimizationChangeIds: ["opt-1"],
-      selectedIssueIds: [sharedIssues.cleanup.id, sharedIssues.startup.id],
+      selectedIssueIds: [sharedIssues.cleanup.id, sharedIssues.storage.id, sharedIssues.startup.id],
       report: {
         kind: "smartcheck",
         generatedAt: now + 12_000,
@@ -282,7 +301,7 @@ export async function installDesktopApiStub(page: Page): Promise<void> {
       },
       trustSummary: "Everything stays reversible.",
       warnings: [],
-      selectedIssues: [sharedIssues.cleanup, sharedIssues.startup],
+      selectedIssues: [sharedIssues.cleanup, sharedIssues.storage, sharedIssues.startup],
       reversibleActions: [
         "12 cleanup items can be restored from quarantine.",
         "1 startup change can be rolled back."

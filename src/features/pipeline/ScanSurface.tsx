@@ -49,7 +49,7 @@ export function ScanSurface({ run, status, scanStage, progress, busy, buckets, o
         aside={
           <MetricStrip
             items={[
-              { label: "Findings", value: run.cleaner.findingsCount, hint: "Grouped, not raw files" },
+              { label: "Findings", value: run.cleaner.findingsCount, hint: "Grouped storage and system findings" },
               { label: "Safe selection", value: formatBytes(run.cleaner.selectedBytes), hint: `${run.cleaner.selectedCount} default targets` },
               { label: "Startup", value: run.optimize.startupIssues, hint: `${run.optimize.performanceIssues} background issues` }
             ]}

@@ -584,7 +584,8 @@ export class SmartCheckService {
         {
           preset: scanPreset,
           categories,
-          roots
+          roots,
+          deepStorage: true
         },
         {
           isCanceled: () => false,

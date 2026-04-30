@@ -111,6 +111,18 @@ function buildHomeSnapshot() {
         evidence: ["4.2 GB cache"]
       },
       {
+        id: "deep-storage:large-storage",
+        domain: "cleanup",
+        title: "Review hidden storage",
+        summary: "42 GB found in large or sensitive storage areas. Review before any cleanup.",
+        severity: "review",
+        bytesRecoverable: 42 * 1024 ** 3,
+        confidence: 0.82,
+        reversible: false,
+        primaryActionLabel: "Review storage",
+        evidence: ["1 developer cache area", "Report-only items stay untouched"]
+      },
+      {
         id: "startup:trim",
         domain: "startup",
         title: "Trim startup drag",
@@ -161,6 +173,18 @@ function buildSmartCheckRun(status: "running" | "completed" = "completed") {
           evidence: ["4.2 GB cache"]
         },
         {
+          id: "deep-storage:large-storage",
+          domain: "cleanup",
+          title: "Review hidden storage",
+          summary: "42 GB found in large or sensitive storage areas. Review before any cleanup.",
+          severity: "review",
+          bytesRecoverable: 42 * 1024 ** 3,
+          confidence: 0.82,
+          reversible: false,
+          primaryActionLabel: "Review storage",
+          evidence: ["1 developer cache area", "Report-only items stay untouched"]
+        },
+        {
           id: "safety:blocked-programfiles",
           domain: "safety",
           title: "Protected install path blocked",
@@ -209,7 +233,7 @@ function buildPlan() {
   return {
     runId: "smart-1",
     generatedAt: now + 5000,
-    selectedIssueIds: ["cleanup:safe-cache", "startup:trim", "safety:blocked-programfiles"],
+    selectedIssueIds: ["cleanup:safe-cache", "deep-storage:large-storage", "startup:trim", "safety:blocked-programfiles"],
     selectedIssues: buildSmartCheckRun().cleaner.groupedIssues.concat(buildSmartCheckRun().optimize.groupedIssues[0]),
     issueBuckets: [
       {
@@ -218,6 +242,13 @@ function buildPlan() {
         summary: "1 grouped cleanup action can move to quarantine.",
         count: 1,
         issues: [buildSmartCheckRun().cleaner.groupedIssues[0]]
+      },
+      {
+        id: "large_storage",
+        label: "Large storage",
+        summary: "1 large storage area needs review before cleanup.",
+        count: 1,
+        issues: [buildSmartCheckRun().cleaner.groupedIssues[1]]
       },
       {
         id: "startup_impact",
@@ -231,7 +262,7 @@ function buildPlan() {
         label: "Blocked for safety",
         summary: "1 path remains blocked.",
         count: 1,
-        issues: [buildSmartCheckRun().cleaner.groupedIssues[1]]
+        issues: [buildSmartCheckRun().cleaner.groupedIssues[2]]
       }
     ],
     cleanupPreview: {
@@ -298,7 +329,7 @@ function buildHistorySession() {
     backgroundReductionPct: 14,
     quarantineItemIds: ["q-1", "q-2"],
     optimizationChangeIds: ["opt-1"],
-    selectedIssueIds: ["cleanup:safe-cache", "startup:trim"],
+    selectedIssueIds: ["cleanup:safe-cache", "deep-storage:large-storage", "startup:trim"],
     report: {
       kind: "smartcheck",
       generatedAt: now + 12_000,
@@ -313,6 +344,7 @@ function buildHistorySession() {
     warnings: [],
     selectedIssues: [
       buildSmartCheckRun().cleaner.groupedIssues[0],
+      buildSmartCheckRun().cleaner.groupedIssues[1],
       buildSmartCheckRun().optimize.groupedIssues[0]
     ],
     reversibleActions: [
@@ -393,6 +425,7 @@ describe("App pipeline rebuild", () => {
     await waitFor(() => expect(desktopApiMock.runSmartCheck).toHaveBeenCalled());
     await waitFor(() => expect(screen.getByRole("heading", { name: "Grouped issues" })).toBeTruthy());
     expect(screen.getByText("Safe to clean")).toBeTruthy();
+    expect(screen.getByText("Large storage")).toBeTruthy();
     expect(screen.getByText("Startup impact")).toBeTruthy();
     expect(screen.getByText("Blocked for safety")).toBeTruthy();
 
@@ -432,6 +465,7 @@ describe("App pipeline rebuild", () => {
     await waitFor(() =>
       expect(desktopApiMock.executeDecisionPlan).toHaveBeenCalledWith("smart-1", [
         "cleanup:safe-cache",
+        "deep-storage:large-storage",
         "startup:trim",
         "safety:blocked-programfiles"
       ])

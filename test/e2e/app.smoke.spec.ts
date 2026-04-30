@@ -8,11 +8,12 @@ test.beforeEach(async ({ page }) => {
 test("runs the full Home -> Scan -> Plan -> Execute -> History flow", async ({ page }) => {
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: "3 issues need attention" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "4 issues need attention" })).toBeVisible();
   await page.getByRole("button", { name: "Run Smart Check" }).click();
 
   await expect(page.getByRole("heading", { name: "Grouped issues" })).toBeVisible();
   await expect(page.getByText("Safe to clean")).toBeVisible();
+  await expect(page.getByText("Large storage")).toBeVisible();
   await expect(page.getByText("Startup impact")).toBeVisible();
   await expect(page.getByText("Blocked for safety")).toBeVisible();
 

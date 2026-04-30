@@ -115,7 +115,7 @@ export function ProductShell() {
     setSmartCheckRun(null);
     setScanProgress(6);
     setScanStage("scanning");
-    setScanStatus("Scanning cleanup, startup, background load, and safety.");
+    setScanStatus("Scanning cleanup, deep storage, startup, background load, and safety.");
     try {
       const { runId } = await window.desktopApi.runSmartCheck("fast");
       setSmartCheckRunId(runId);

@@ -401,4 +401,57 @@ describe("ScanEngine", () => {
     await fs.rm(cacheRoot, { recursive: true, force: true });
     await fs.rm(root, { recursive: true, force: true });
   });
+
+  it("adds deep storage findings when requested without exposing report-only items as selected cleanup", async () => {
+    const root = await createTestRoot("cleanup-deep-storage-");
+    const userProfile = path.join(root, "Users", "edfpo");
+    const localAppData = path.join(userProfile, "AppData", "Local");
+    const roamingAppData = path.join(userProfile, "AppData", "Roaming");
+    const programData = path.join(root, "ProgramData");
+    const windowsDir = path.join(root, "Windows");
+    const tempDir = path.join(localAppData, "Temp");
+    const dockerDir = path.join(localAppData, "Docker", "wsl", "data");
+    await fs.mkdir(tempDir, { recursive: true });
+    await fs.mkdir(dockerDir, { recursive: true });
+    await fs.writeFile(path.join(tempDir, "hidden.tmp"), "payload");
+    const vhdxPath = path.join(dockerDir, "ext4.vhdx");
+    await fs.writeFile(vhdxPath, "");
+    await fs.truncate(vhdxPath, 2 * 1024 ** 3);
+
+    const envSnapshot = {
+      USERPROFILE: process.env.USERPROFILE,
+      LOCALAPPDATA: process.env.LOCALAPPDATA,
+      APPDATA: process.env.APPDATA,
+      ProgramData: process.env.ProgramData,
+      windir: process.env.windir
+    };
+    process.env.USERPROFILE = userProfile;
+    process.env.LOCALAPPDATA = localAppData;
+    process.env.APPDATA = roamingAppData;
+    process.env.ProgramData = programData;
+    process.env.windir = windowsDir;
+
+    try {
+      const result = await createScanEngine().run(
+        "run-deep-storage",
+        {
+          preset: "lite",
+          categories: ["wsl_leftovers"],
+          roots: [],
+          deepStorage: true
+        },
+        {
+          isCanceled: () => false,
+          onProgress: () => undefined
+        }
+      );
+
+      expect(result.summary.deepStorage?.bytesFound).toBeGreaterThan(0);
+      expect(result.findings.some((item) => item.origin === "deep_storage" && item.storageSafety === "safe")).toBe(true);
+      expect(result.findings.some((item) => item.origin === "deep_storage" && item.storageSafety === "never" && item.executionBlocked)).toBe(true);
+    } finally {
+      restoreEnv(envSnapshot);
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
 });

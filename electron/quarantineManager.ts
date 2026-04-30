@@ -314,7 +314,7 @@ export class QuarantineManager {
       return [];
     }
 
-    const preparedMove = this.prepareQuarantineDirectory({ directoryPath, entries });
+    const preparedMove = await this.prepareQuarantineDirectory({ directoryPath, entries });
     await movePath(preparedMove.operation.source, preparedMove.operation.destination, options);
 
     const items = preparedMove.items;
@@ -335,7 +335,7 @@ export class QuarantineManager {
     const preparedFileMoves =
       options?.preparedFileMoves ?? (await Promise.all(payload.fileEntries.map((entry) => this.prepareQuarantineEntry(entry))));
     const preparedDirectoryMoves =
-      options?.preparedDirectoryMoves ?? payload.directoryPlans.map((plan) => this.prepareQuarantineDirectory(plan));
+      options?.preparedDirectoryMoves ?? (await Promise.all(payload.directoryPlans.map((plan) => this.prepareQuarantineDirectory(plan))));
 
     if (!preparedFileMoves.length && !preparedDirectoryMoves.length) {
       return {
@@ -682,6 +682,7 @@ export class QuarantineManager {
   }
 
   private async prepareQuarantineEntry(entry: QuarantineBatchEntry): Promise<PreparedQuarantineFileMove> {
+    await this.assertNotReparsePoint(entry.filePath);
     const id = randomUUID();
     const fileName = path.basename(entry.filePath);
     const destination = path.join(this.vaultDir, sanitizeVaultName(`${id}_${fileName}`));
@@ -720,7 +721,8 @@ export class QuarantineManager {
     };
   }
 
-  private prepareQuarantineDirectory(plan: QuarantineDirectoryPlan): PreparedQuarantineDirectoryMove {
+  private async prepareQuarantineDirectory(plan: QuarantineDirectoryPlan): Promise<PreparedQuarantineDirectoryMove> {
+    await this.assertNotReparsePoint(plan.directoryPath);
     const normalizedDirectory = normalizeForCompare(plan.directoryPath);
     const destinationDir = path.join(
       this.vaultDir,
@@ -776,6 +778,13 @@ export class QuarantineManager {
       },
       items
     };
+  }
+
+  private async assertNotReparsePoint(targetPath: string): Promise<void> {
+    const stats = await fs.lstat(targetPath);
+    if (stats.isSymbolicLink()) {
+      throw new Error(`Cleanup refused symbolic link or junction-like path: ${targetPath}`);
+    }
   }
 
   private groupPurgeTargets(items: QuarantineItem[]): PurgeGroup[] {

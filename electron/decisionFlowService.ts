@@ -177,6 +177,10 @@ function hasExecutableActions(plan: ActionPlanSummary): boolean {
   return Boolean((plan.cleanupPreview?.actionCount ?? 0) > 0 || (plan.optimizationPreview?.actions.length ?? 0) > 0);
 }
 
+function countAppliedActions(result: Awaited<ReturnType<SmartCheckService["execute"]>>): number {
+  return (result.cleanup?.movedCount ?? 0) + (result.optimizations?.appliedCount ?? 0);
+}
+
 function buildSessionSummary(selectedIssues: ProductIssueCard[], reportTrust: string, cleanupMovedCount: number, optimizationChangeCount: number): string {
   if (selectedIssues.length) {
     return `${selectedIssues.length} grouped ${selectedIssues.length === 1 ? "issue was" : "issues were"} applied safely.`;
@@ -223,6 +227,9 @@ export class DecisionFlowService {
       throw new Error("Plan has no executable actions.");
     }
     const result = await this.deps.smartCheckService.execute(runId, plan.selectedIssueIds, options);
+    if (countAppliedActions(result) === 0) {
+      throw new Error("No plan actions were applied.");
+    }
     const report = result.report;
     const session: ExecutionSession = {
       id: options?.executionId ?? randomUUID(),

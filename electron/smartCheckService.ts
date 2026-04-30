@@ -390,6 +390,7 @@ export class SmartCheckService {
     let postCleanupSnapshot: SystemSnapshot | undefined;
     let preOptimizationSnapshot: SystemSnapshot | undefined;
     let postOptimizationSnapshot: SystemSnapshot | undefined;
+    let snapshotWarningAdded = false;
     const executionId = options?.executionId ?? randomUUID();
     const emit = (stage: DecisionExecutionProgressEvent["stage"], percent: number, title: string, summary: string, detail?: string) => {
       options?.onProgress?.({
@@ -401,6 +402,14 @@ export class SmartCheckService {
         detail,
         timestamp: Date.now()
       });
+    };
+    const captureOptionalSnapshot = async (source: SystemSnapshot["source"]): Promise<SystemSnapshot | undefined> => {
+      const snapshot = await this.captureAndStoreSnapshot(source);
+      if (!snapshot && !snapshotWarningAdded) {
+        warnings.push("Before/after diagnostics snapshot unavailable; execution continued without a snapshot delta.");
+        snapshotWarningAdded = true;
+      }
+      return snapshot;
     };
 
     if (!cleanupSelection.length && !optimizationActions.length) {
@@ -414,10 +423,10 @@ export class SmartCheckService {
     emit("preparing", 5, "Preparing plan", "Locking the current selection and checking safety guards.");
     const settings = this.deps.configStore.getAll();
     if (cleanupSelection.length && settings.performanceAutoSnapshotOnCleanup) {
-      preCleanupSnapshot = await this.captureAndStoreSnapshot("pre_cleanup");
+      preCleanupSnapshot = await captureOptionalSnapshot("pre_cleanup");
     }
     if (optimizationActions.length && settings.performanceAutoSnapshotOnOptimization) {
-      preOptimizationSnapshot = await this.captureAndStoreSnapshot("pre_optimization");
+      preOptimizationSnapshot = await captureOptionalSnapshot("pre_optimization");
     }
 
     if (cleanupSelection.length) {
@@ -446,10 +455,10 @@ export class SmartCheckService {
     }
 
     if (cleanupSelection.length && settings.performanceAutoSnapshotOnCleanup) {
-      postCleanupSnapshot = await this.captureAndStoreSnapshot("post_cleanup");
+      postCleanupSnapshot = await captureOptionalSnapshot("post_cleanup");
     }
     if (optimizationActions.length && settings.performanceAutoSnapshotOnOptimization) {
-      postOptimizationSnapshot = await this.captureAndStoreSnapshot("post_optimization");
+      postOptimizationSnapshot = await captureOptionalSnapshot("post_optimization");
     }
 
     if (cleanup?.failedCount) {
@@ -680,9 +689,13 @@ export class SmartCheckService {
     return { cleanupSelection, optimizationActions };
   }
 
-  private async captureAndStoreSnapshot(source: SystemSnapshot["source"]): Promise<SystemSnapshot> {
-    const snapshot = await this.deps.systemDiagnostics.captureSnapshot({ source, sampleCount: 1, sampleIntervalMs: 400 });
-    this.deps.db.addSystemSnapshot(snapshot);
-    return snapshot;
+  private async captureAndStoreSnapshot(source: SystemSnapshot["source"]): Promise<SystemSnapshot | undefined> {
+    try {
+      const snapshot = await this.deps.systemDiagnostics.captureSnapshot({ source, sampleCount: 1, sampleIntervalMs: 400 });
+      this.deps.db.addSystemSnapshot(snapshot);
+      return snapshot;
+    } catch {
+      return undefined;
+    }
   }
 }

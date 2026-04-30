@@ -1,5 +1,5 @@
 import { SmartCheckService } from "../electron/smartCheckService";
-import { HomeSummarySnapshot, SmartCheckRun, SystemSnapshot } from "../electron/types";
+import { HomeSummarySnapshot, ProductIssueCard, ScanFinding, SmartCheckRun, SystemSnapshot } from "../electron/types";
 
 function buildSummary(): HomeSummarySnapshot {
   return {
@@ -263,5 +263,97 @@ describe("SmartCheckService resilience", () => {
       findings: [],
       rejected: []
     }));
+  });
+
+  it("executes cleanup even when before/after diagnostics snapshots fail", async () => {
+    const finding: ScanFinding = {
+      id: "finding-1",
+      path: "C:\\Temp\\cleanup-pilot-test.tmp",
+      category: "temp",
+      sizeBytes: 1024,
+      risk: "low",
+      reason: "Test temp file",
+      sourceRuleId: "test-rule",
+      selectedByDefault: true,
+      modifiedAt: Date.now(),
+      kind: "file"
+    };
+    const issue: ProductIssueCard = {
+      id: "cleanup:temp",
+      domain: "cleanup",
+      title: "Clean temp files",
+      summary: "One safe cleanup item is ready.",
+      severity: "safe_win",
+      confidence: 0.95,
+      reversible: true,
+      primaryActionLabel: "Clean",
+      evidence: ["Quarantine-first"]
+    };
+    const cleanupExecute = jest.fn(async () => ({
+      movedCount: 1,
+      failedCount: 0,
+      freedBytes: 1024,
+      errors: [],
+      movedIds: ["finding-1"],
+      failedIds: []
+    }));
+    const { deps } = buildDeps({
+      configStore: {
+        getAll: jest.fn(() => ({
+          customRoots: [],
+          performanceAutoSnapshotOnCleanup: true,
+          performanceAutoSnapshotOnOptimization: true
+        }))
+      },
+      scanEngine: {
+        run: jest.fn(async () => ({
+          status: "completed",
+          findings: [finding],
+          rejected: [],
+          summary: {
+            runId: "scan-1",
+            status: "completed",
+            startedAt: Date.now(),
+            finishedAt: Date.now(),
+            processedItems: 1,
+            findingsCount: 1,
+            totalCandidateBytes: 1024,
+            protectedRejectedCount: 0,
+            categories: {}
+          }
+        }))
+      },
+      cleanupEngine: {
+        preview: jest.fn(async () => ({
+          totalBytes: 1024,
+          actionCount: 1,
+          riskFlags: { highRiskCount: 0, mediumRiskCount: 0, blockedCount: 0 }
+        })),
+        execute: cleanupExecute
+      },
+      systemDiagnostics: {
+        captureSnapshot: jest.fn(async () => {
+          throw new Error("diagnostics unavailable");
+        })
+      },
+      issueRankingService: {
+        rankIssues: jest.fn(() => ({
+          cleanerIssues: [{ card: issue, cleanupFindingIds: ["finding-1"], optimizationActions: [] }],
+          optimizeIssues: [],
+          topIssues: [issue],
+          summary: { ...buildSummary(), recommendedIssue: issue, topIssues: [issue] }
+        }))
+      }
+    });
+    const service = new SmartCheckService(deps);
+    const { runId } = await service.run("fast");
+    const run = await waitForRun(service, runId);
+    expect(run.status).toBe("completed");
+
+    const result = await service.execute(runId, ["cleanup:temp"]);
+
+    expect(result.cleanup?.movedCount).toBe(1);
+    expect(cleanupExecute).toHaveBeenCalled();
+    expect(result.warnings).toContain("Before/after diagnostics snapshot unavailable; execution continued without a snapshot delta.");
   });
 });

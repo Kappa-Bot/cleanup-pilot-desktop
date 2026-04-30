@@ -22,6 +22,7 @@ interface CleanupExecutionOptions {
   runId: string;
   executionId: string;
   onProgress?: (payload: CleanupExecutionProgressEvent) => void;
+  requestAdminBeforeStart?: boolean;
 }
 
 interface CleanupEngineDependencies {
@@ -46,6 +47,24 @@ function normalizePathKey(inputPath: string): string {
 
 function findingTaskCount(finding: ScanFinding): number {
   return Math.max(1, finding.entryCount ?? 1);
+}
+
+function entryTaskCount(entry: QuarantineBatchEntry): number {
+  return Math.max(1, entry.taskCount ?? 1);
+}
+
+function toQuarantineEntry(finding: ScanFinding): QuarantineBatchEntry {
+  return {
+    filePath: finding.path,
+    metadata: {
+      category: finding.category,
+      source: "scan"
+    },
+    sizeBytes: finding.sizeBytes,
+    findingId: finding.id,
+    entryKind: finding.kind === "directory" ? "directory" : "file",
+    taskCount: findingTaskCount(finding)
+  };
 }
 
 function getDirectoryDepth(directoryPath: string): number {
@@ -321,6 +340,159 @@ export class CleanupEngine {
       logLine: `Plan bulkFolders=${directoryPlans.length} directFiles=${remainingTargets.length}`
     });
 
+    if (options?.requestAdminBeforeStart && process.platform === "win32" && (directoryPlans.length > 0 || remainingTargets.length > 0)) {
+      emitProgress(
+        {
+          stage: "preparing",
+          message: "Requesting administrator approval before cleanup starts.",
+          logLine: `ELEVATE PREFLIGHT directories=${directoryPlans.length} files=${remainingTargets.length}`
+        },
+        true
+      );
+
+      const fileEntries = remainingTargets.map(toQuarantineEntry);
+      const elevatedDirectoryPlans: QuarantineDirectoryPlan[] = directoryPlans.map((plan) => ({
+        directoryPath: plan.directoryPath,
+        entries: plan.findings.map(toQuarantineEntry)
+      }));
+      const findingById = new Map(eligibleTargets.map((item) => [item.id, item]));
+
+      try {
+        const elevatedResult = await quarantineManager.quarantineMixedBatchElevated({
+          fileEntries,
+          directoryPlans: elevatedDirectoryPlans
+        });
+
+        for (const item of elevatedResult.movedDirectories) {
+          const fileCount = item.plan.entries.reduce((sum, entry) => sum + entryTaskCount(entry), 0);
+          const bytes = item.items.reduce((sum, entry) => sum + entry.sizeBytes, 0);
+          movedCount += fileCount;
+          freedBytes += bytes;
+          completedTasks += fileCount;
+          movedIds.push(
+            ...item.plan.entries
+              .map((entry) => entry.findingId)
+              .filter((entry): entry is string => Boolean(entry))
+          );
+          emitProgress({
+            stage: "running",
+            message: `Admin batch moved ${item.plan.directoryPath}`,
+            runningPath: item.plan.directoryPath,
+            logLine: `ELEVATE PREFLIGHT DONE ${item.plan.directoryPath} (${fileCount} files, ${bytes} bytes)`
+          });
+        }
+
+        for (const item of elevatedResult.failedDirectories) {
+          const fileCount = item.plan.entries.reduce((sum, entry) => sum + entryTaskCount(entry), 0);
+          const message = item.error.message;
+          completedTasks += fileCount;
+          failedCount += fileCount;
+          for (const entry of item.plan.entries) {
+            if (entry.findingId) {
+              failedIds.push(entry.findingId);
+              const finding = findingById.get(entry.findingId);
+              errors.push(`${finding?.path ?? entry.filePath}: ${message}`);
+            }
+          }
+          emitProgress({
+            stage: "running",
+            message: `Admin batch failed for ${item.plan.directoryPath}`,
+            runningPath: item.plan.directoryPath,
+            logLine: `ELEVATE PREFLIGHT FAILED ${item.plan.directoryPath}: ${message}`
+          });
+        }
+
+        for (const item of elevatedResult.movedFiles) {
+          const findingId = item.entry.findingId;
+          if (!findingId) {
+            continue;
+          }
+          const finding = findingById.get(findingId);
+          if (!finding) {
+            continue;
+          }
+
+          const taskCount = findingTaskCount(finding);
+          completedTasks += taskCount;
+          movedCount += taskCount;
+          freedBytes += finding.sizeBytes;
+          movedIds.push(finding.id);
+          emitProgress({
+            stage: "running",
+            message: `Admin batch moved ${finding.path}`,
+            runningPath: finding.path,
+            logLine: `ELEVATE PREFLIGHT DONE ${finding.path} (${finding.sizeBytes} bytes)`
+          });
+        }
+
+        for (const item of elevatedResult.failedFiles) {
+          const findingId = item.entry.findingId;
+          if (!findingId) {
+            continue;
+          }
+          const finding = findingById.get(findingId);
+          if (!finding) {
+            continue;
+          }
+
+          const taskCount = findingTaskCount(finding);
+          completedTasks += taskCount;
+          failedCount += taskCount;
+          failedIds.push(finding.id);
+          const message = item.error.message;
+          errors.push(`${finding.path}: ${message}`);
+          emitProgress({
+            stage: "running",
+            message: `Admin batch failed for ${finding.path}`,
+            runningPath: finding.path,
+            logLine: `ELEVATE PREFLIGHT FAILED ${finding.path}: ${message}`
+          });
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Administrator approval failed.";
+        const failedTasks =
+          fileEntries.reduce((sum, entry) => sum + entryTaskCount(entry), 0) +
+          elevatedDirectoryPlans.reduce((sum, plan) => sum + plan.entries.reduce((inner, entry) => inner + entryTaskCount(entry), 0), 0);
+        completedTasks += failedTasks;
+        failedCount += failedTasks;
+        failedIds.push(
+          ...fileEntries.map((entry) => entry.findingId).filter((entry): entry is string => Boolean(entry)),
+          ...elevatedDirectoryPlans.flatMap((plan) =>
+            plan.entries.map((entry) => entry.findingId).filter((entry): entry is string => Boolean(entry))
+          )
+        );
+        for (const entry of [...fileEntries, ...elevatedDirectoryPlans.flatMap((plan) => plan.entries)]) {
+          errors.push(`${entry.filePath}: ${message}`);
+        }
+        emitProgress(
+          {
+            stage: "failed",
+            message,
+            logLine: `ELEVATE PREFLIGHT FAILED ${message}`
+          },
+          true
+        );
+      }
+
+      emitProgress(
+        {
+          stage: errors.length > 0 ? "failed" : "completed",
+          message: `Cleanup finished. Moved ${movedCount}, failed ${failedCount}.`,
+          logLine: `SUMMARY moved=${movedCount} failed=${failedCount} freed=${freedBytes}`
+        },
+        true
+      );
+
+      return {
+        movedCount,
+        failedCount,
+        freedBytes,
+        errors,
+        movedIds,
+        failedIds
+      };
+    }
+
     const deferredElevatedDirectoryPlans: QuarantineDirectoryPlan[] = [];
     const deferredElevatedFileEntries: QuarantineBatchEntry[] = [];
 
@@ -334,16 +506,7 @@ export class CleanupEngine {
         logLine: `BULK START ${plan.directoryPath} (${fileCount} files)`
       });
 
-      const entries: QuarantineBatchEntry[] = plan.findings.map((item) => ({
-        filePath: item.path,
-        metadata: {
-          category: item.category,
-          source: "scan"
-        },
-        sizeBytes: item.sizeBytes,
-        findingId: item.id,
-        entryKind: item.kind === "directory" ? "directory" : "file"
-      }));
+      const entries = plan.findings.map(toQuarantineEntry);
 
       try {
         await quarantineManager.quarantineDirectory(plan.directoryPath, entries, {
@@ -409,16 +572,7 @@ export class CleanupEngine {
 
     if (remainingTargets.length > 0) {
       const findingById = new Map(remainingTargets.map((item) => [item.id, item]));
-      const entries: QuarantineBatchEntry[] = remainingTargets.map((item) => ({
-        filePath: item.path,
-        metadata: {
-          category: item.category,
-          source: "scan"
-        },
-        sizeBytes: item.sizeBytes,
-        findingId: item.id,
-        entryKind: item.kind === "directory" ? "directory" : "file"
-      }));
+      const entries = remainingTargets.map(toQuarantineEntry);
 
       emitProgress({
         stage: "running",
@@ -508,7 +662,7 @@ export class CleanupEngine {
         });
 
         for (const item of elevatedResult.movedDirectories) {
-          const fileCount = item.plan.entries.length;
+          const fileCount = item.plan.entries.reduce((sum, entry) => sum + entryTaskCount(entry), 0);
           const bytes = item.items.reduce((sum, entry) => sum + entry.sizeBytes, 0);
           movedCount += fileCount;
           freedBytes += bytes;
@@ -527,7 +681,7 @@ export class CleanupEngine {
         }
 
         for (const item of elevatedResult.failedDirectories) {
-          const fileCount = item.plan.entries.length;
+          const fileCount = item.plan.entries.reduce((sum, entry) => sum + entryTaskCount(entry), 0);
           const message = item.error.message;
           completedTasks += fileCount;
           failedCount += fileCount;
@@ -600,7 +754,7 @@ export class CleanupEngine {
           deferredElevatedFileEntries.reduce((sum, entry) => {
             const findingId = entry.findingId;
             const finding = findingId ? findingById.get(findingId) : null;
-            return sum + (finding ? findingTaskCount(finding) : 1);
+            return sum + (finding ? findingTaskCount(finding) : entryTaskCount(entry));
           }, 0) +
           deferredElevatedDirectoryPlans.reduce(
             (sum, item) =>
@@ -608,7 +762,7 @@ export class CleanupEngine {
               item.entries.reduce((innerSum, entry) => {
                 const findingId = entry.findingId;
                 const finding = findingId ? findingById.get(findingId) : null;
-                return innerSum + (finding ? findingTaskCount(finding) : 1);
+                return innerSum + (finding ? findingTaskCount(finding) : entryTaskCount(entry));
               }, 0),
             0
           );

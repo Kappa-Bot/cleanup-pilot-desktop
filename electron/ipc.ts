@@ -301,6 +301,7 @@ export function registerIpcHandlers(deps: Dependencies): void {
       const result = await cleanupEngine.execute(run.findings, args.selection, quarantineManager, {
         runId: args.runId,
         executionId,
+        requestAdminBeforeStart: true,
         onProgress: (progress) => {
           event.sender.send("cleanup.progress", progress);
         }

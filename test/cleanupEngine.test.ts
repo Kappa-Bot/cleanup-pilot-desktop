@@ -468,4 +468,77 @@ describe("CleanupEngine", () => {
 
     await fs.rm(root, { recursive: true, force: true });
   });
+
+  it("requests administrator batch before native cleanup when preflight elevation is enabled", async () => {
+    const engine = new CleanupEngine();
+    const findings: ScanFinding[] = [
+      {
+        id: "admin-1",
+        path: "C:\\Users\\u\\AppData\\Local\\Temp\\admin-1.tmp",
+        category: "temp",
+        sizeBytes: 10,
+        risk: "low",
+        reason: "temp",
+        sourceRuleId: "temp-path",
+        selectedByDefault: true,
+        modifiedAt: Date.now()
+      },
+      {
+        id: "admin-2",
+        path: "C:\\Users\\u\\AppData\\Local\\Temp\\admin-2.tmp",
+        category: "temp",
+        sizeBytes: 20,
+        risk: "low",
+        reason: "temp",
+        sourceRuleId: "temp-path",
+        selectedByDefault: true,
+        modifiedAt: Date.now()
+      }
+    ];
+    const quarantineMixedBatchElevated = jest.fn(async (payload: { fileEntries: QuarantineBatchEntry[] }) => ({
+      movedFiles: payload.fileEntries.map((entry, index) => ({
+        entry,
+        item: {
+          id: `q-${index}`,
+          originalPath: entry.filePath,
+          quarantinePath: `C:\\vault\\q-${index}`,
+          sizeBytes: entry.sizeBytes ?? 0,
+          category: entry.metadata.category,
+          source: entry.metadata.source,
+          movedAt: Date.now()
+        }
+      })),
+      failedFiles: [],
+      movedDirectories: [],
+      failedDirectories: []
+    }));
+    const quarantineDirectory = jest.fn(async () => []);
+    const quarantineFilesBatch = jest.fn(async () => ({ moved: [], failed: [] }));
+    const manager = {
+      quarantineDirectory,
+      quarantineFilesBatch,
+      quarantineMixedBatchElevated
+    } as unknown as QuarantineManager;
+    const progressMessages: string[] = [];
+
+    const result = await engine.execute(
+      findings,
+      findings.map((item) => item.id),
+      manager,
+      {
+        runId: "run-admin",
+        executionId: "exec-admin",
+        requestAdminBeforeStart: true,
+        onProgress: (event) => progressMessages.push(event.message)
+      }
+    );
+
+    expect(quarantineMixedBatchElevated).toHaveBeenCalledTimes(1);
+    expect(quarantineDirectory).not.toHaveBeenCalled();
+    expect(quarantineFilesBatch).not.toHaveBeenCalled();
+    expect(progressMessages).toContain("Requesting administrator approval before cleanup starts.");
+    expect(result.movedCount).toBe(2);
+    expect(result.failedCount).toBe(0);
+    expect(result.freedBytes).toBe(30);
+  });
 });

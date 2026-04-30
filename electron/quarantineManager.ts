@@ -31,6 +31,7 @@ export interface QuarantineBatchEntry {
   sizeBytes?: number;
   findingId?: string;
   entryKind?: "file" | "directory";
+  taskCount?: number;
 }
 
 export interface QuarantineBatchProgress {

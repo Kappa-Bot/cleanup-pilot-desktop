@@ -434,6 +434,7 @@ export class SmartCheckService {
       cleanup = await this.deps.cleanupEngine.execute(run.findings, cleanupSelection, this.deps.quarantineManager, {
         runId,
         executionId,
+        requestAdminBeforeStart: true,
         onProgress: (progress) => {
           emit(
             "cleanup",

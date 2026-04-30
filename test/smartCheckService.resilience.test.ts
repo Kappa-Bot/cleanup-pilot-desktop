@@ -354,6 +354,7 @@ describe("SmartCheckService resilience", () => {
 
     expect(result.cleanup?.movedCount).toBe(1);
     expect(cleanupExecute).toHaveBeenCalled();
+    expect((cleanupExecute.mock.calls[0] as unknown[] | undefined)?.[3]).toMatchObject({ requestAdminBeforeStart: true });
     expect(result.warnings).toContain("Before/after diagnostics snapshot unavailable; execution continued without a snapshot delta.");
   });
 });

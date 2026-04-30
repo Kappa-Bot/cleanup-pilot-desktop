@@ -11,7 +11,9 @@ import { cloneSettings, defaultExecutionProgress, groupScanIssues, type VisualTh
 
 function loadStoredTheme(): VisualTheme {
   const stored = window.localStorage.getItem("cleanup-pilot-theme");
-  return stored === "arctic" || stored === "sand" || stored === "graphite" ? stored : "graphite";
+  return stored === "arctic" || stored === "sand" || stored === "graphite" || stored === "midnight" || stored === "onyx"
+    ? stored
+    : "graphite";
 }
 
 export function ProductShell() {

@@ -344,4 +344,128 @@ describe("CleanupEngine", () => {
 
     await fs.rm(root, { recursive: true, force: true });
   });
+
+  it("runs independent bulk directory quarantine plans concurrently", async () => {
+    const engine = new CleanupEngine();
+    const roots = await Promise.all([
+      fs.mkdtemp(path.join(os.tmpdir(), "cleanup-parallel-a-")),
+      fs.mkdtemp(path.join(os.tmpdir(), "cleanup-parallel-b-"))
+    ]);
+    const findings: ScanFinding[] = [];
+
+    for (const [rootIndex, root] of roots.entries()) {
+      const targetDir = path.join(root, "cache-pack");
+      await fs.mkdir(targetDir, { recursive: true });
+      for (let index = 0; index < 10; index += 1) {
+        const filePath = path.join(targetDir, `item-${index}.tmp`);
+        await fs.writeFile(filePath, "x");
+        findings.push({
+          id: `dir-${rootIndex}-${index}`,
+          path: filePath,
+          category: "temp",
+          sizeBytes: 1,
+          risk: "low",
+          reason: "temp",
+          sourceRuleId: "temp-path",
+          selectedByDefault: true,
+          modifiedAt: Date.now()
+        });
+      }
+    }
+
+    let activeBulkMoves = 0;
+    let maxActiveBulkMoves = 0;
+    const quarantineDirectory = jest.fn(async () => {
+      activeBulkMoves += 1;
+      maxActiveBulkMoves = Math.max(maxActiveBulkMoves, activeBulkMoves);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      activeBulkMoves -= 1;
+      return [];
+    });
+    const quarantineFilesBatch = jest.fn(async () => ({ moved: [], failed: [] }));
+    const manager = {
+      quarantineDirectory,
+      quarantineFilesBatch
+    } as unknown as QuarantineManager;
+
+    const result = await engine.execute(
+      findings,
+      findings.map((item) => item.id),
+      manager,
+      {
+        runId: "run-parallel",
+        executionId: "exec-parallel"
+      }
+    );
+
+    expect(quarantineDirectory).toHaveBeenCalledTimes(2);
+    expect(maxActiveBulkMoves).toBeGreaterThan(1);
+    expect(result.movedCount).toBe(20);
+    expect(result.failedCount).toBe(0);
+
+    await Promise.all(roots.map((root) => fs.rm(root, { recursive: true, force: true })));
+  });
+
+  it("coalesces high-volume cleanup progress events while preserving the final summary", async () => {
+    const engine = new CleanupEngine();
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "cleanup-progress-"));
+    const targetDir = path.join(root, "cache-pack");
+    await fs.mkdir(targetDir, { recursive: true });
+    const findings: ScanFinding[] = [];
+    const total = 40;
+    for (let index = 0; index < total; index += 1) {
+      const filePath = path.join(targetDir, `item-${index}.tmp`);
+      await fs.writeFile(filePath, "x");
+      findings.push({
+        id: `id-${index}`,
+        path: filePath,
+        category: "temp",
+        sizeBytes: 1,
+        risk: "low",
+        reason: "temp",
+        sourceRuleId: "temp-path",
+        selectedByDefault: true,
+        modifiedAt: Date.now()
+      });
+    }
+    await fs.writeFile(path.join(targetDir, "keep.me"), "do-not-touch");
+
+    const quarantineFilesBatch = jest.fn(
+      async (
+        entries: QuarantineBatchEntry[],
+        options?: { onItem?: (event: { entry: QuarantineBatchEntry; success: boolean }) => void }
+      ) => {
+        for (const entry of entries) {
+          options?.onItem?.({ entry, success: true });
+        }
+        return { moved: [], failed: [] };
+      }
+    );
+    const manager = {
+      quarantineDirectory: jest.fn(async () => []),
+      quarantineFilesBatch
+    } as unknown as QuarantineManager;
+    const progressEvents: Array<{ stage: string; completedTasks: number; percent: number }> = [];
+
+    const result = await engine.execute(
+      findings,
+      findings.map((item) => item.id),
+      manager,
+      {
+        runId: "run-progress",
+        executionId: "exec-progress",
+        onProgress: (event) => progressEvents.push(event)
+      }
+    );
+
+    expect(result.movedCount).toBe(total);
+    expect(progressEvents.length).toBeLessThanOrEqual(12);
+    expect(progressEvents.at(-1)).toMatchObject({
+      stage: "completed",
+      completedTasks: total,
+      percent: 100
+    });
+
+    await fs.rm(root, { recursive: true, force: true });
+  });
 });

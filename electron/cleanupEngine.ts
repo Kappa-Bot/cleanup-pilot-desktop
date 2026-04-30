@@ -36,7 +36,9 @@ interface DirectoryPlan {
 const BULK_DIRECTORY_MIN_FILES = 8;
 const BULK_DIRECTORY_MAX_CANDIDATES = 48;
 const FILE_BATCH_CONCURRENCY = Math.max(4, Math.min(16, os.cpus().length));
+const DIRECTORY_BULK_CONCURRENCY = Math.max(2, Math.min(6, os.cpus().length));
 const DIRECTORY_ENUMERATION_CONCURRENCY = Math.max(2, Math.min(8, os.cpus().length));
+const PROGRESS_EVENT_MIN_INTERVAL_MS = 80;
 
 function normalizePathKey(inputPath: string): string {
   return path.normalize(inputPath).replace(/\//g, "\\").toLowerCase();
@@ -129,7 +131,7 @@ async function inspectDirectorySelection(
   };
 
   const workers = Array.from(
-    { length: Math.min(DIRECTORY_ENUMERATION_CONCURRENCY, pending.length || 1) },
+    { length: DIRECTORY_ENUMERATION_CONCURRENCY },
     async () => {
       while (true) {
         if (failed || hasSymlink || mismatchFound) {
@@ -232,16 +234,27 @@ export class CleanupEngine {
     const movedIds: string[] = [];
     const failedIds: string[] = [];
     let completedTasks = 0;
+    let lastProgressEmitAt = 0;
+    let lastProgressStage: CleanupExecutionProgressEvent["stage"] | null = null;
 
     const emitProgress = (payload: {
       stage: CleanupExecutionProgressEvent["stage"];
       message: string;
       runningPath?: string;
       logLine?: string;
-    }): void => {
+    }, force = false): void => {
       if (!options?.onProgress) {
         return;
       }
+
+      const now = Date.now();
+      const terminalStage = payload.stage === "completed" || payload.stage === "failed";
+      const stageChanged = payload.stage !== lastProgressStage;
+      if (!force && !terminalStage && !stageChanged && now - lastProgressEmitAt < PROGRESS_EVENT_MIN_INTERVAL_MS) {
+        return;
+      }
+      lastProgressEmitAt = now;
+      lastProgressStage = payload.stage;
 
       const pendingTasks = Math.max(0, totalTasks - completedTasks);
       const percent =
@@ -262,7 +275,7 @@ export class CleanupEngine {
         runningPath: payload.runningPath,
         message: payload.message,
         logLine: payload.logLine,
-        timestamp: Date.now()
+        timestamp: now
       });
     };
 
@@ -311,7 +324,7 @@ export class CleanupEngine {
     const deferredElevatedDirectoryPlans: QuarantineDirectoryPlan[] = [];
     const deferredElevatedFileEntries: QuarantineBatchEntry[] = [];
 
-    for (const plan of directoryPlans) {
+    const processDirectoryPlan = async (plan: DirectoryPlan): Promise<void> => {
       const fileCount = plan.findings.reduce((sum, item) => sum + findingTaskCount(item), 0);
       const bytes = plan.findings.reduce((sum, item) => sum + item.sizeBytes, 0);
       emitProgress({
@@ -358,7 +371,7 @@ export class CleanupEngine {
             runningPath: plan.directoryPath,
             logLine: `ELEVATE QUEUED ${plan.directoryPath} (${fileCount} files)`
           });
-          continue;
+          return;
         }
 
         const message = error instanceof Error ? error.message : "Unknown error";
@@ -375,6 +388,23 @@ export class CleanupEngine {
           logLine: `BULK FAILED ${plan.directoryPath}: ${message}`
         });
       }
+    };
+
+    if (directoryPlans.length > 0) {
+      let directoryCursor = 0;
+      const workerCount = Math.min(DIRECTORY_BULK_CONCURRENCY, directoryPlans.length);
+      await Promise.all(
+        Array.from({ length: workerCount }, async () => {
+          while (true) {
+            const currentIndex = directoryCursor;
+            directoryCursor += 1;
+            if (currentIndex >= directoryPlans.length) {
+              return;
+            }
+            await processDirectoryPlan(directoryPlans[currentIndex]);
+          }
+        })
+      );
     }
 
     if (remainingTargets.length > 0) {
@@ -618,7 +648,7 @@ export class CleanupEngine {
       stage: errors.length > 0 ? "failed" : "completed",
       message: `Cleanup finished. Moved ${movedCount}, failed ${failedCount}.`,
       logLine: `SUMMARY moved=${movedCount} failed=${failedCount} freed=${freedBytes}`
-    });
+    }, true);
 
     return {
       movedCount,

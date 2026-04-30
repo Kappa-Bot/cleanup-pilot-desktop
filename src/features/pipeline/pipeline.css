@@ -13,6 +13,15 @@
   --pipeline-warning: #fff5e4;
   --pipeline-danger: #b42318;
   --pipeline-success: #147a53;
+  --pipeline-progress-track: rgba(15, 23, 42, 0.1);
+  --pipeline-safe-bg: #dff7ea;
+  --pipeline-safe-ink: #07543c;
+  --pipeline-review-bg: #fff2c8;
+  --pipeline-review-ink: #704600;
+  --pipeline-danger-bg: #fee4e2;
+  --pipeline-danger-ink: #8d2118;
+  --pipeline-info-bg: #e6f0fb;
+  --pipeline-info-ink: #244963;
   --pipeline-shadow: 0 18px 46px rgba(15, 23, 42, 0.075);
   --pipeline-shadow-soft: 0 8px 24px rgba(15, 23, 42, 0.055);
   --pipeline-focus: 0 0 0 3px rgba(25, 95, 85, 0.18);
@@ -44,6 +53,17 @@ h3 {
   --pipeline-accent-strong: #10463f;
   --pipeline-accent-soft: #eaf4f1;
   --pipeline-warning: #fff5e4;
+  --pipeline-danger: #b42318;
+  --pipeline-success: #147a53;
+  --pipeline-progress-track: rgba(15, 23, 42, 0.1);
+  --pipeline-safe-bg: #dff7ea;
+  --pipeline-safe-ink: #07543c;
+  --pipeline-review-bg: #fff2c8;
+  --pipeline-review-ink: #704600;
+  --pipeline-danger-bg: #fee4e2;
+  --pipeline-danger-ink: #8d2118;
+  --pipeline-info-bg: #e6f0fb;
+  --pipeline-info-ink: #244963;
   --pipeline-shadow: 0 18px 46px rgba(15, 23, 42, 0.075);
   --pipeline-shadow-soft: 0 8px 24px rgba(15, 23, 42, 0.055);
   min-height: 100vh;
@@ -82,6 +102,64 @@ h3 {
   --pipeline-accent-strong: #4e351f;
   --pipeline-accent-soft: #f4ecdf;
   --pipeline-warning: #fff1d7;
+}
+
+.pipeline-app-shell[data-theme="midnight"] {
+  --pipeline-bg: #0f1724;
+  --pipeline-surface: rgba(18, 27, 41, 0.98);
+  --pipeline-surface-strong: #172235;
+  --pipeline-surface-subtle: #101a2a;
+  --pipeline-border: rgba(203, 213, 225, 0.16);
+  --pipeline-border-strong: rgba(125, 211, 252, 0.48);
+  --pipeline-ink: #f8fafc;
+  --pipeline-muted: #cbd5e1;
+  --pipeline-accent: #38bdf8;
+  --pipeline-accent-strong: #7dd3fc;
+  --pipeline-accent-soft: rgba(56, 189, 248, 0.15);
+  --pipeline-warning: rgba(245, 158, 11, 0.18);
+  --pipeline-danger: #fca5a5;
+  --pipeline-success: #6ee7b7;
+  --pipeline-progress-track: rgba(226, 232, 240, 0.18);
+  --pipeline-safe-bg: rgba(52, 211, 153, 0.18);
+  --pipeline-safe-ink: #bbf7d0;
+  --pipeline-review-bg: rgba(251, 191, 36, 0.18);
+  --pipeline-review-ink: #fde68a;
+  --pipeline-danger-bg: rgba(248, 113, 113, 0.18);
+  --pipeline-danger-ink: #fecaca;
+  --pipeline-info-bg: rgba(56, 189, 248, 0.16);
+  --pipeline-info-ink: #bae6fd;
+  --pipeline-shadow: 0 18px 44px rgba(0, 0, 0, 0.32);
+  --pipeline-shadow-soft: 0 10px 26px rgba(0, 0, 0, 0.24);
+  --pipeline-focus: 0 0 0 3px rgba(56, 189, 248, 0.28);
+}
+
+.pipeline-app-shell[data-theme="onyx"] {
+  --pipeline-bg: #090b0f;
+  --pipeline-surface: rgba(18, 18, 22, 0.98);
+  --pipeline-surface-strong: #15171d;
+  --pipeline-surface-subtle: #101217;
+  --pipeline-border: rgba(229, 231, 235, 0.15);
+  --pipeline-border-strong: rgba(167, 243, 208, 0.44);
+  --pipeline-ink: #f4f4f5;
+  --pipeline-muted: #d4d4d8;
+  --pipeline-accent: #34d399;
+  --pipeline-accent-strong: #86efac;
+  --pipeline-accent-soft: rgba(52, 211, 153, 0.14);
+  --pipeline-warning: rgba(217, 119, 6, 0.2);
+  --pipeline-danger: #fca5a5;
+  --pipeline-success: #86efac;
+  --pipeline-progress-track: rgba(244, 244, 245, 0.16);
+  --pipeline-safe-bg: rgba(52, 211, 153, 0.18);
+  --pipeline-safe-ink: #bbf7d0;
+  --pipeline-review-bg: rgba(251, 191, 36, 0.18);
+  --pipeline-review-ink: #fde68a;
+  --pipeline-danger-bg: rgba(248, 113, 113, 0.2);
+  --pipeline-danger-ink: #fecaca;
+  --pipeline-info-bg: rgba(148, 163, 184, 0.18);
+  --pipeline-info-ink: #e2e8f0;
+  --pipeline-shadow: 0 18px 44px rgba(0, 0, 0, 0.38);
+  --pipeline-shadow-soft: 0 10px 26px rgba(0, 0, 0, 0.26);
+  --pipeline-focus: 0 0 0 3px rgba(52, 211, 153, 0.26);
 }
 
 .pipeline-app-shell[data-high-contrast="true"] {
@@ -242,8 +320,8 @@ h3 {
 }
 
 .pipeline-card--button.is-active {
-  border-color: rgba(15, 118, 110, 0.24);
-  background: #f5faf8;
+  border-color: var(--pipeline-border-strong);
+  background: var(--pipeline-accent-soft);
 }
 
 .pipeline-card-header {
@@ -264,7 +342,7 @@ h3 {
   gap: 10px;
   padding: 16px;
   border-radius: 16px;
-  border: 1px solid rgba(15, 23, 42, 0.06);
+  border: 1px solid var(--pipeline-border);
   background: var(--pipeline-surface-subtle);
 }
 
@@ -273,7 +351,7 @@ h3 {
 }
 
 .pipeline-score-card.tone-watch {
-  background: #f8fafb;
+  background: var(--pipeline-info-bg);
 }
 
 .pipeline-score-card.tone-healthy {
@@ -302,7 +380,7 @@ h3 {
 
 .pipeline-action-row {
   justify-content: space-between;
-  border-top: 1px solid rgba(15, 23, 42, 0.06);
+  border-top: 1px solid var(--pipeline-border);
   padding-top: 10px;
 }
 
@@ -320,14 +398,14 @@ h3 {
   gap: 4px;
   padding: 12px 14px;
   border-radius: 14px;
-  border: 1px solid rgba(15, 23, 42, 0.06);
+  border: 1px solid var(--pipeline-border);
   background: var(--pipeline-surface-subtle);
   position: relative;
   overflow: hidden;
 }
 
 .execution-phase.is-active {
-  border-color: rgba(15, 118, 110, 0.24);
+  border-color: var(--pipeline-border-strong);
   background: var(--pipeline-accent-soft);
 }
 
@@ -340,7 +418,7 @@ h3 {
 }
 
 .execution-phase.is-complete {
-  border-color: rgba(31, 41, 55, 0.08);
+  border-color: var(--pipeline-border);
   background: var(--pipeline-surface-strong);
 }
 
@@ -374,7 +452,7 @@ h3 {
 .settings-field select,
 .settings-field textarea {
   width: 100%;
-  border: 1px solid rgba(15, 23, 42, 0.12);
+  border: 1px solid var(--pipeline-border);
   border-radius: 12px;
   padding: 10px 12px;
   background: var(--pipeline-surface-strong);
@@ -414,7 +492,7 @@ h3 {
 .pipeline-app-shell .btn.secondary {
   background: var(--pipeline-surface-strong);
   color: var(--pipeline-ink);
-  border: 1px solid rgba(15, 23, 42, 0.12);
+  border: 1px solid var(--pipeline-border);
 }
 
 .pipeline-app-shell .smart-action-bar {
@@ -453,6 +531,67 @@ h3 {
 
 .pipeline-app-shell .issue-card-header small {
   color: var(--pipeline-muted);
+}
+
+.pipeline-app-shell .muted {
+  color: var(--pipeline-muted);
+}
+
+.pipeline-app-shell .section-kicker {
+  color: var(--pipeline-muted);
+}
+
+.pipeline-app-shell .workspace-meta-pill {
+  background: var(--pipeline-surface-subtle);
+  border: 1px solid var(--pipeline-border);
+  color: var(--pipeline-ink);
+}
+
+.pipeline-app-shell .product-metric-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+}
+
+.pipeline-app-shell .product-metric-card {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: var(--pipeline-surface-subtle);
+  border: 1px solid var(--pipeline-border);
+  color: var(--pipeline-ink);
+}
+
+.pipeline-app-shell .product-metric-card small,
+.pipeline-app-shell .product-metric-card span {
+  color: var(--pipeline-muted);
+}
+
+.pipeline-app-shell .product-metric-card strong {
+  color: var(--pipeline-ink);
+}
+
+.pipeline-app-shell .trust-badge {
+  border: 1px solid transparent;
+  color: var(--pipeline-info-ink);
+  background: var(--pipeline-info-bg);
+}
+
+.pipeline-app-shell .trust-badge--safe_win {
+  color: var(--pipeline-safe-ink);
+  background: var(--pipeline-safe-bg);
+}
+
+.pipeline-app-shell .trust-badge--review {
+  color: var(--pipeline-review-ink);
+  background: var(--pipeline-review-bg);
+}
+
+.pipeline-app-shell .trust-badge--high_impact,
+.pipeline-app-shell .trust-badge--blocked {
+  color: var(--pipeline-danger-ink);
+  background: var(--pipeline-danger-bg);
 }
 
 .pipeline-app-shell .side-inspector,
@@ -518,7 +657,7 @@ h3 {
   height: 8px;
   overflow: hidden;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.08);
+  background: var(--pipeline-progress-track);
 }
 
 .progress-meter-track span {
@@ -548,7 +687,7 @@ h3 {
 
 .theme-choice-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
   gap: 8px;
 }
 
@@ -590,6 +729,14 @@ h3 {
 
 .theme-swatch-sand {
   background: linear-gradient(90deg, #f0ede7 0 50%, #6c4c2f 50% 100%);
+}
+
+.theme-swatch-midnight {
+  background: linear-gradient(90deg, #0f1724 0 50%, #38bdf8 50% 100%);
+}
+
+.theme-swatch-onyx {
+  background: linear-gradient(90deg, #090b0f 0 50%, #34d399 50% 100%);
 }
 
 @keyframes pipeline-enter {

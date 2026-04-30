@@ -17,12 +17,14 @@ export const surfaceItems: Array<{ id: TopLevelSurface; label: string; hint: str
   { id: "history", label: "History", hint: "Undo" }
 ];
 
-export type VisualTheme = "graphite" | "arctic" | "sand";
+export type VisualTheme = "graphite" | "arctic" | "sand" | "midnight" | "onyx";
 
 export const visualThemeItems: Array<{ id: VisualTheme; label: string; summary: string }> = [
   { id: "graphite", label: "Graphite", summary: "Neutral Windows utility" },
   { id: "arctic", label: "Arctic", summary: "Cool high-clarity surface" },
-  { id: "sand", label: "Sand", summary: "Warm professional surface" }
+  { id: "sand", label: "Sand", summary: "Warm professional surface" },
+  { id: "midnight", label: "Midnight", summary: "Dark focused workspace" },
+  { id: "onyx", label: "Onyx", summary: "Deep high-contrast utility" }
 ];
 
 export const scanStageItems: Array<{ id: "scanning" | "findings" | "grouped"; label: string; hint: string }> = [
